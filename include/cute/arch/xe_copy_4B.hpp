@@ -117,9 +117,10 @@ SYCL_DEVICE_BUILTIN(
         int pitch_minus_one, cute::intel::coord_t coord));
 
 // 32bits No transform No transpose
-SYCL_DEVICE_BUILTIN(cute::intel::uint __builtin_IB_subgroup_block_read_flat_u32_m1k16v1(
-    intptr_t baseoffset, int width_minus_one, int height_minus_one,
-    int pitch_minus_one, cute::intel::coord_t coord));
+SYCL_DEVICE_BUILTIN(
+    cute::intel::uint __builtin_IB_subgroup_block_read_flat_u32_m1k16v1(
+        intptr_t baseoffset, int width_minus_one, int height_minus_one,
+        int pitch_minus_one, cute::intel::coord_t coord));
 SYCL_DEVICE_BUILTIN(
     cute::intel::uint2 __builtin_IB_subgroup_block_read_flat_u32_m2k16v1(
         intptr_t baseoffset, int width_minus_one, int height_minus_one,
@@ -142,9 +143,10 @@ SYCL_DEVICE_BUILTIN(
         int pitch_minus_one, cute::intel::coord_t coord));
 
 // 32bits No transform Transpose
-SYCL_DEVICE_BUILTIN(cute::intel::uint __builtin_IB_subgroup_block_read_flat_transpose_u32_k1(
-    intptr_t baseoffset, int width_minus_one, int height_minus_one,
-    int pitch_minus_one, cute::intel::coord_t coord));
+SYCL_DEVICE_BUILTIN(
+    cute::intel::uint __builtin_IB_subgroup_block_read_flat_transpose_u32_k1(
+        intptr_t baseoffset, int width_minus_one, int height_minus_one,
+        int pitch_minus_one, cute::intel::coord_t coord));
 SYCL_DEVICE_BUILTIN(
     cute::intel::uint2 __builtin_IB_subgroup_block_read_flat_transpose_u32_k2(
         intptr_t baseoffset, int width_minus_one, int height_minus_one,
@@ -155,6 +157,10 @@ SYCL_DEVICE_BUILTIN(
         int pitch_minus_one, cute::intel::coord_t coord));
 SYCL_DEVICE_BUILTIN(
     cute::intel::uint8 __builtin_IB_subgroup_block_read_flat_transpose_u32_k8(
+        intptr_t baseoffset, int width_minus_one, int height_minus_one,
+        int pitch_minus_one, cute::intel::coord_t coord));
+SYCL_DEVICE_BUILTIN(
+    cute::intel::uint4 __builtin_IB_subgroup_block_read_flat_transpose_u32_m8k8(
         intptr_t baseoffset, int width_minus_one, int height_minus_one,
         int pitch_minus_one, cute::intel::coord_t coord));
 
@@ -708,6 +714,27 @@ struct XE_2D_U32x16x8_LD_T {
 #endif
     }
   };
+};
+
+struct XE_2D_TF32x8x8_LD_T {
+  using BlockShape = Shape<_8, _8>;
+  using ValueShape = Shape<_4, _16>;
+
+  static constexpr bool is_transpose = true;
+
+  template <class T>
+  CUTE_HOST_DEVICE static void copy(const void *baseoffset, int width,
+                                    int height, int pitch, intel::coord_t coord,
+                                    T *dst) {
+#if defined(SYCL_INTEL_TARGET)
+    static_assert(sizeof(T) == 4, "Expected T to have size 4");
+    *reinterpret_cast<intel::uint4 *>(dst) =
+        __builtin_IB_subgroup_block_read_flat_transpose_u32_m8k8(
+            (intptr_t)(baseoffset), width - 1, height - 1, pitch - 1, coord);
+#else
+    CUTE_INVALID_CONTROL_PATH("Trying to use block loads on non-PVC hardware");
+#endif
+    }
 };
 
 struct XE_2D_U32x1x16_ST_N {

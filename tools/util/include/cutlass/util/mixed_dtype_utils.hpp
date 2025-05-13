@@ -497,6 +497,43 @@ void reorder_tensor(
   cutlass::device_memory::copy_device_to_device(data, temp.get(), static_cast<size_t>(size(layout_src)));
 }
 
+template<class Src, class Dst>
+void convert_int_subbyte_to_half(Dst & out, Src const& in) {
+  using SrcType = typename Src::value_type;
+
+  static_assert(sizeof_bits_v<SrcType> < 8);
+  static_assert(std::is_same_v<half_t, typename Dst::value_type> ||
+                std::is_same_v<_Float16, typename Dst::value_type>);
+
+  using format_type = uint8_t;
+
+  static constexpr auto src_bits = sizeof_bits_v<SrcType>;
+  static constexpr auto scalar = sizeof_bits_v<format_type> / src_bits;
+  static constexpr auto loop_cnt = decltype(size<0>(out))::value;
+  static constexpr auto v_cnt = decltype(size(out))::value / scalar / loop_cnt;
+  static constexpr auto is_src_signed = is_signed<SrcType>::value;
+
+auto src_ptr = reinterpret_cast<const format_type*>(raw_pointer_cast(in.data()));
+auto& dst = *reinterpret_cast<cute::intel::vector_t<ushort, decltype(size(out))::value>*>(out.data());
+
+  #pragma unroll
+  for (int v = 0; v < v_cnt; v++) {
+    #pragma unroll
+    for (int j = 0; j < scalar; j++) {
+      #pragma unroll
+      for (int i = 0; i < loop_cnt; i++) {
+        if constexpr (is_src_signed) {
+          dst[v * loop_cnt * scalar + j + i * scalar] = cutlass::platform::bit_cast<ushort>(static_cast<_Float16>(
+              (int32_t)(static_cast<SrcType>((src_ptr[v * loop_cnt + i] >> (src_bits * j)) & 0xf))));
+        } else {
+          dst[v * loop_cnt * scalar + j + i * scalar] = cutlass::platform::bit_cast<ushort>(static_cast<_Float16>(
+              (src_ptr[v * loop_cnt + i] >> (src_bits * j)) & 0xf));
+        }
+      }
+    }
+  }
+}
+
 #undef CUDA_CHECK
 
 }  // namespace cutlass

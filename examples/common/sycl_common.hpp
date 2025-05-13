@@ -80,9 +80,14 @@ void initialize_mixed_dtype_block(cutlass::DeviceAllocation<T1>& block_device,
   if (bits_input == 1) {
    scope_max = T1(2);
    scope_min = T1(0);
-  } else if (bits_input <= 8) {
-    scope_max = T1(2);
-    scope_min = T1(-2);
+  }else if (bits_input <= 8) {
+    if (cute::is_signed<T1>::value) {
+      scope_max = T1((2 ^ bits_input) / 2  - 1);
+      scope_min = T1(-((2 ^ bits_input) / 2));
+    } else {
+      scope_max = T1((2 ^ bits_input) - 1);
+      scope_min = T1(0);
+    }
   } else {
     scope_max = T1(8);
     scope_min = T1(-8);

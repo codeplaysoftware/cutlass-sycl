@@ -211,7 +211,8 @@
  // CUTLASS_CREATE_GEMM_BENCHMARK(PvcGemmBF16BF16FP32_RCR_Linear);
  // CUTLASS_CREATE_GEMM_BENCHMARK(PvcGemmBF16BF16FP32_RCR_Linear_MoE);
  //
- 
+
+
  using PvcGemmFP16FP16FP32_RCR_5 = cutlass::gemm::device::GemmConfiguration<
          cutlass::arch::IntelXe,
          cutlass::half_t, cutlass::layout::RowMajor,

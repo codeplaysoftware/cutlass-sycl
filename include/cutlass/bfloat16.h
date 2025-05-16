@@ -45,9 +45,9 @@
 #include <cstring>
 #endif
 
-#if !defined(CUTLASS_ENABLE_SYCL)
+#if !defined(CUTLASS_ENABLE_SYCL) || defined(__CUDA__)
 #include <cuda_bf16.h>
-#endif
+#endif // defined(__CUDA__)
 
 #include "cutlass/cutlass.h"
 #include "cutlass/platform/platform.h"
@@ -103,7 +103,7 @@ public:
   /// Default constructor
   bfloat16_t() = default;
 
-#if !defined(CUTLASS_ENABLE_SYCL)
+#if !defined(CUTLASS_ENABLE_SYCL) || defined(__CUDA__)
   /// Reinterpret cast from CUDA's __nv_bfloat16 type
   CUTLASS_HOST_DEVICE
   explicit bfloat16_t(__nv_bfloat16 const & x) {
@@ -199,7 +199,7 @@ public:
     return (float(*this) != 0.0f);
   }
 
-#if !defined(CUTLASS_ENABLE_SYCL)
+#if !defined(CUTLASS_ENABLE_SYCL) || defined(__CUDA__)
   /// Bitcasts to CUDA's bf16 type
   CUTLASS_DEVICE
   __nv_bfloat16 to_nv_bfloat16() const {

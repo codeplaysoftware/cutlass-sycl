@@ -193,6 +193,10 @@ void insert_to_device(T* device_begin, InputIterator begin, InputIterator end) {
 template <typename T>
 class DeviceAllocation {
 public:
+#if defined(CUTLASS_ENABLE_SYCL)
+  // keep a reference to the device so it's not destructed before the destructor of this class (siof)
+  sycl::device dev = syclcompat::get_default_queue().get_device();
+#endif
 
   /// Delete functor for CUDA device memory
   struct deleter {

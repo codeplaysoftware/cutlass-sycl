@@ -63,7 +63,7 @@ jobs:
           cmake -G Ninja  \
             -DCUTLASS_ENABLE_SYCL=ON \
             -DDPCPP_SYCL_TARGET=nvptx64-nvidia-cuda \
-            -DDPCPP_SYCL_ARCH=sm_80
+            -DDPCPP_SYCL_ARCH=sm_90a
           cmake --build .
 
       - name: Unit test

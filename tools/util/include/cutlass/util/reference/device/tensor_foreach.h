@@ -34,6 +34,7 @@
 #include <stdexcept>
 #include "cutlass/cutlass.h"
 #include "cutlass/util/reference/device/kernel/tensor_foreach.h"
+#include "cutlass/kernel_hardware_info.h"
 
 namespace cutlass  {
 namespace reference {
@@ -75,8 +76,8 @@ struct TensorForEach {
     }
 
 #if defined(CUTLASS_ENABLE_SYCL)
-    const auto sycl_block = syclcompat::dim3(block_size, 1, 1);
-    const auto sycl_grid = syclcompat::dim3(grid_size, 1, 1);
+    const syclcompat::dim3 sycl_block(block_size, 1, 1);
+    const syclcompat::dim3 sycl_grid(grid_size, 1, 1);
     syclcompat::launch<kernel::TensorForEach<Func, Rank, Params>>(sycl_grid, sycl_block, size, params);
 #else
     dim3 grid(grid_size, 1, 1);
@@ -103,8 +104,8 @@ struct TensorDiagonalForEach {
     }
 
 #if defined(CUTLASS_ENABLE_SYCL)
-    const auto sycl_block = syclcompat::dim3(block_size, 1, 1);
-    const auto sycl_grid = syclcompat::dim3((end - start + block_size - 1) / block_size, 1, 1);
+    const syclcompat::dim3 sycl_block(block_size, 1, 1);
+    const syclcompat::dim3 sycl_grid((end - start + block_size - 1) / block_size, 1, 1);
     syclcompat::launch<kernel::TensorDiagonalForEach<Func, Rank, Params>>(sycl_grid, sycl_block, size, params, start, end);
 #else
     dim3 block(block_size, 1, 1);
@@ -153,8 +154,8 @@ struct BlockForEach {
     }
 
 #if defined(CUTLASS_ENABLE_SYCL)
-    const auto sycl_block = syclcompat::dim3(block_size, 1, 1);
-    const auto sycl_grid = syclcompat::dim3(grid_size, 1, 1);
+    const syclcompat::dim3 sycl_block(block_size, 1, 1);
+    const syclcompat::dim3 sycl_grid(grid_size, 1, 1);
     syclcompat::launch<kernel::BlockForEach<Element, Func>>(sycl_grid, sycl_block, ptr, capacity, params);
 #else
     dim3 grid(grid_size, 1, 1);

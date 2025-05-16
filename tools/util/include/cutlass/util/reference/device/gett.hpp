@@ -44,7 +44,7 @@ template <
   class DTensor,
   class ElementAccumulator,
   class ElementEpilogue>
-__global__ static
+CUTLASS_GLOBAL
 void
 gett_kernel(
   DTensor       D,
@@ -140,7 +140,19 @@ gett(
 
   dim3 dimBlock(256);
   dim3 dimGrid(240);
+#if defined(CUTLASS_ENABLE_SYCL)
+  const syclcompat::dim3 sycl_grid(dimGrid.x, dimGrid.y, dimGrid.z);
+  const syclcompat::dim3 sycl_block(dimBlock.x, dimBlock.y, dimBlock.z);
+  syclcompat::launch<gett_kernel<
+    decltype(A),
+    decltype(B),
+    decltype(C),
+    decltype(D),
+    ElementAccumulator,
+    ElementEpilogue>>(sycl_grid, sycl_block, D, A, B, C, alpha, beta, ElementAccumulator(0));
+#else
   gett_kernel<<< dimGrid, dimBlock, 0, stream >>>(D, A, B, C, alpha, beta, ElementAccumulator(0));
+#endif
 }
 
 } // namespace cutlass::reference::device

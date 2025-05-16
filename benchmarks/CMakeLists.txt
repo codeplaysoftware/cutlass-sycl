@@ -26,6 +26,9 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+if (SYCL_NVIDIA_TARGET)
+  find_package(CUDAToolkit)
+endif()
 
 add_custom_target(cutlass_benchmarks)
 add_custom_target(benchmarks)
@@ -80,6 +83,17 @@ function(cutlass_benchmark_add_executable NAME)
     $<$<BOOL:${ADD_CUDA}>:cuda>
     benchmark::benchmark
   )
+
+  if (SYCL_NVIDIA_TARGET)
+    target_link_libraries(
+      ${NAME}
+      PRIVATE
+      CUDA::cudart
+      CUDA::cuda_driver
+    )
+
+    target_compile_definitions(${NAME} PRIVATE  __CUDACC_VER_MAJOR__=${CUDAToolkit_VERSION_MAJOR} __CUDACC_VER_MINOR__=${CUDAToolkit_VERSION_MINOR})
+  endif()
 
   target_include_directories(
     ${NAME}

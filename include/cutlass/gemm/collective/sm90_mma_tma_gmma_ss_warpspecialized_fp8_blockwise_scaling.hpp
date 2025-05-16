@@ -490,7 +490,7 @@ struct CollectiveMma<
       // Copy scale tensors from global memory to shared memory
       copy_if(scale_copy_a, tApA_ScaleA, tAgA_ScaleA(_,_,*k_tile_iter), tAsA_ScaleA(_,_,write_stage));
       copy_if(scale_copy_b, tBpB_ScaleB, tBgB_ScaleB(_,_,*k_tile_iter), tBsB_ScaleB(_,_,write_stage));
-      pipeline.producer_commit(smem_pipe_write, cutlass::arch::cpasync_barrier_arrive_noinc);
+      pipeline.template producer_commit<cutlass::arch::cpasync_barrier_arrive_noinc>(smem_pipe_write);
 
       ++k_tile_iter;
 

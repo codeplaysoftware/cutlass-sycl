@@ -53,9 +53,13 @@ endif()
 
 if(NOT "${DPCPP_SYCL_ARCH}" STREQUAL "")
   if("${DPCPP_SYCL_TARGET}" STREQUAL "nvptx64-nvidia-cuda")
+    list(APPEND DPCPP_FLAGS "-fsycl-cuda-compatibility")
+    # Allow to use grid constant, beneficial even if CUTensorMap is not used.
+    list(APPEND DPCPP_FLAGS "-fno-sycl-decompose-functor")
     list(APPEND DPCPP_FLAGS "-Xsycl-target-backend")
     list(APPEND DPCPP_FLAGS "--cuda-gpu-arch=${DPCPP_SYCL_ARCH}")
     list(APPEND DPCPP_COMPILE_ONLY_FLAGS; "-mllvm;-enable-global-offset=false;")
+    set(CMAKE_CUDA_ARCHITECTURES "${CUTLASS_NVCC_ARCHS}")
   endif()
 endif()
 

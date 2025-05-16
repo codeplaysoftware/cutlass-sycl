@@ -90,6 +90,8 @@ public:
   };
 
   static constexpr int SharedStorageSize = sizeof(SharedStorage);
+  static constexpr int MaxThreadsPerBlock = MaxNumThreadsPerBlock;
+  static constexpr int MinBlocksPerMultiprocessor = 1;
 
   //
   // Params struct

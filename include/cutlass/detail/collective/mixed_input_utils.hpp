@@ -107,7 +107,7 @@ struct LayoutAwareConvertImpl<
       static constexpr uint32_t xor_mask = 0x43084308;
       static constexpr uint32_t lo_mask  = 0x000F000F;
       static constexpr uint32_t immLut   = (0xf0 & 0xcc) ^ 0xaa;
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
       CUTE_INVALID_CONTROL_PATH("Unimplemented");
 #else
       asm volatile(
@@ -159,7 +159,7 @@ struct LayoutAwareConvertImpl<
       static constexpr uint32_t or_mask = 0x43004300;
       static constexpr uint32_t lo_mask = 0x000F000F;
       static constexpr uint32_t immLut  = (0xf0 & 0xcc) | 0xaa;
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
       CUTE_INVALID_CONTROL_PATH("Unimplemented");
 #else
       asm volatile(
@@ -230,7 +230,7 @@ struct LayoutAwareConvertImpl<
       static constexpr uint32_t lo_bias  = 0x64086408; // {1032, 1032}
       static constexpr uint32_t hi_bias  = 0xD480D480; // {-72, -72}
       static constexpr uint32_t hi_scale = 0x2C002C00; // {1/16, 1/16}
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
       {
         half2& fp16x2_val = reinterpret_cast<half2&>(r[ii + 0]);
         fp16x2_val = fp16x2_val - reinterpret_cast<const half2&>(lo_bias);
@@ -308,7 +308,7 @@ struct LayoutAwareConvertImpl<
       static constexpr uint32_t lo_bias  = or_mask;    // 0x64006400, {1024, 1024}
       static constexpr uint32_t hi_bias  = 0xD400D400; // {-64, -64}
       static constexpr uint32_t hi_scale = 0x2C002C00; // {1/16, 1/16}
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
       {
         half2& fp16x2_val = reinterpret_cast<half2&>(r[ii + 0]);
         fp16x2_val = fp16x2_val - reinterpret_cast<const half2&>(lo_bias);
@@ -412,7 +412,7 @@ struct LayoutAwareConvertImpl<
       static constexpr uint32_t and_mask_0 = 0x007F007F;
       static constexpr uint32_t and_mask_1 = 0x00800080;
       static constexpr uint32_t immLut     = (0xf0 & 0xcc) | 0xaa;
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
       CUTE_INVALID_CONTROL_PATH("Unimplemented");
 #else
       asm volatile(
@@ -477,7 +477,7 @@ struct LayoutAwareConvertImpl<
           : "n"(and_mask), "n"(xor_mask), "n"(immLut));
       {
         static constexpr uint32_t bias = 0x64806480;
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
         half2& fp16x2_val = reinterpret_cast<half2&>(r[ii]);
         fp16x2_val = fp16x2_val - reinterpret_cast<half2 const&>(bias);
 #else

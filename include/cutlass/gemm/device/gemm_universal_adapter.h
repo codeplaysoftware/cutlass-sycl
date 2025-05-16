@@ -393,7 +393,6 @@ public:
 #if (CUTLASS_DEBUG_TRACE_LEVEL > 1)
       CUTLASS_TRACE_HOST("GemmUniversal::run: Use extended launch API");
 #endif
-#if !defined(CUTLASS_ENABLE_SYCL)
       [[maybe_unused]] constexpr bool is_static_1x1x1 =
         cute::is_static_v<typename GemmKernel::DispatchPolicy::ClusterShape> and
         cute::size(typename GemmKernel::DispatchPolicy::ClusterShape{}) == 1;
@@ -401,6 +400,7 @@ public:
         cute::size<1>(typename GemmKernel::DispatchPolicy::ClusterShape{}),
         cute::size<2>(typename GemmKernel::DispatchPolicy::ClusterShape{}));
       
+#if !defined(CUTLASS_ENABLE_SYCL)
       // Dynamic cluster support
       [[maybe_unused]] dim3 fallback_cluster = dim3{0,0,0};
       if constexpr (GemmKernel::ArchTag::kMinComputeCapability == 100 
@@ -519,6 +519,32 @@ public:
         }
         
       }
+#elif defined(__CUDA__)
+        using namespace syclcompat::experimental;
+        auto launch_props = [smem_size, cluster] {
+          if constexpr (is_static_1x1x1) {
+            return sycl::ext::oneapi::experimental::properties{
+              sycl::ext::oneapi::experimental::work_group_scratch_size(smem_size),
+            };
+          } else {
+            return sycl::ext::oneapi::experimental::properties{
+              sycl::ext::oneapi::experimental::cuda::cluster_size(
+                  sycl::range<3>(cluster.z, cluster.y, cluster.x)
+              ),
+              sycl::ext::oneapi::experimental::work_group_scratch_size(smem_size),
+            };
+          }
+        }();
+        launch_properties l_props(launch_props);
+        kernel_properties k_props(
+          sycl::ext::oneapi::experimental::max_linear_work_group_size<GemmKernel::MaxThreadsPerBlock>
+        );
+        syclcompat::experimental::launch_policy policy{sycl_grid, sycl_block, l_props, k_props};
+#if (CUTLASS_DEBUG_TRACE_LEVEL > 1)
+        CUTLASS_TRACE_HOST("GemmUniversal::run: Launching sm90 kernel with syclcompat");
+#endif
+        auto event = syclcompat::experimental::launch<device_kernel<GemmKernel>>(policy, params);
+        EventManager::getInstance().addEvent(event);
 #endif
     }
     else {

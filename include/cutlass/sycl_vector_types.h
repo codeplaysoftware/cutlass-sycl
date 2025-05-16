@@ -30,6 +30,8 @@
  **************************************************************************************************/
 #pragma once
 
+#if !defined(__CUDA__)
+
 #include "cutlass/detail/helper_macros.hpp"
 
 // Add these definitions in the cutlass namespace, so they do not clash with the ones in cuda
@@ -103,3 +105,4 @@ int4 make_int4(int x, int y, int z, int w) {
   return int4 {x,y,z,w};
 }
 }
+#endif // !defined(__CUDA__)

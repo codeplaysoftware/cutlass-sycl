@@ -197,7 +197,8 @@ mma_unpack(MMA_Traits<MMAOp>   const& traits,
 
   CUTE_STATIC_ASSERT_V(size(rC) == Int<RegNumC>{});
 
-  detail::explode(MMAOp::fma,
+
+  detail::explode_mma<MMAOp>(
                   rA, make_int_sequence<RegNumA>{},
                   rB, make_int_sequence<RegNumB>{},
                   rC, make_int_sequence<RegNumC>{},

@@ -5355,7 +5355,7 @@ private:
 
     CUTLASS_PRAGMA_UNROLL
     for (int ii = 0; ii < PackedResultType::kElements; ++ii) {
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
       t[ii] = syclcompat::dp4a(x, mask[ii], 0);
 #else
       t[ii] = __dp4a(x, mask[ii], 0);
@@ -5571,7 +5571,7 @@ private:
     // Scale and subtract the FP16s to get the original int4 number as FP16.
     CUTLASS_PRAGMA_UNROLL
     for (int ii = 0; ii < RegArray::kElements; ++ii) {
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
       half2& fp16x2_val = reinterpret_cast<half2&>(r[ii]);
       fp16x2_val = sycl::fma(fp16x2_val,
                            reinterpret_cast<const half2&>(hfma_scale_rep),
@@ -5714,7 +5714,7 @@ private:
     // Scale and subtract the FP16s to get the original int4 number as FP16.
     CUTLASS_PRAGMA_UNROLL
     for (int ii = 0; ii < RegArray::kElements; ++ii) {
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
       half2& fp16x2_val = reinterpret_cast<half2&>(r[ii]);
       fp16x2_val = sycl::fma(fp16x2_val,
                            reinterpret_cast<const half2&>(hfma_scale_rep),
@@ -5868,7 +5868,7 @@ private:
     // Scale and subtract the FP16s to get the original int4 number as FP16.
     CUTLASS_PRAGMA_UNROLL
     for (int ii = 0; ii < RegArray::kElements; ++ii) {
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
       half2& fp16x2_val = reinterpret_cast<half2&>(r[ii]);
       fp16x2_val = sycl::fma(hfma_scale, fp16x2_val, hfma_bias);
 #else
@@ -5999,7 +5999,7 @@ private:
       static constexpr uint32_t hfma_scale = 0x2C003C00; // {1 / 16, 1}
       
       {
-      #if defined(CUTLASS_ENABLE_SYCL)
+      #if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
         half2& fp16x2_val = reinterpret_cast<half2&>(r[ii]);
         fp16x2_val = sycl::fma(fp16x2_val, reinterpret_cast<const half2&>(hfma_scale), reinterpret_cast<const half2&>(hfma_bias));
       #else
@@ -6119,7 +6119,7 @@ private:
     const half2& bias = reinterpret_cast<const half2&>(bias_rep);
     CUTLASS_PRAGMA_UNROLL
     for (int ii = 0; ii < RegArray::kElements; ++ii) {
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
       half2& fp16x2_val = reinterpret_cast<half2&>(r[ii]);
       fp16x2_val = fp16x2_val - bias;
 #else
@@ -6203,7 +6203,7 @@ private:
     const half2& bias = reinterpret_cast<const half2&>(bias_rep);
     CUTLASS_PRAGMA_UNROLL
     for (int ii = 0; ii < RegArray::kElements; ++ii) {
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
       half2& fp16x2_val = reinterpret_cast<half2&>(r[ii]);
       fp16x2_val = fp16x2_val - bias;
 #else

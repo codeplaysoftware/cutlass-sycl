@@ -279,7 +279,6 @@ explode(Fn fn,
   return fn(d[Id]..., a[Ia]..., b[Ib]..., c[Ic]..., e[Ie]..., f[If]..., g[Ig]...);
 }
 
-#if defined(CUTLASS_ENABLE_SYCL)
 template <class MMA_Op,
           class PtrD, int... Id,
           class PtrA, int... Ia,
@@ -294,7 +293,23 @@ explode_mma(PtrD&& d, int_sequence<Id...>,
 {
   return MMA_Op::fma(d[Id]..., a[Ia]..., b[Ib]..., c[Ic]...);
 }
-#endif
+
+template <class MMA_Op,
+          class PtrD, int... Id,
+          class PtrA, int... Ia,
+          class PtrB, int... Ib,
+          class PtrC, int... Ic,
+          class PtrE, int... Ie>
+CUTE_HOST_DEVICE constexpr
+void
+explode_mma(PtrD&& d, int_sequence<Id...>,
+        PtrA&& a, int_sequence<Ia...>,
+        PtrB&& b, int_sequence<Ib...>,
+        PtrC&& c, int_sequence<Ic...>,
+        PtrE&& e, int_sequence<Ie...>)
+{
+  return MMA_Op::fma(d[Id]..., a[Ia]..., b[Ib]..., c[Ic]..., e[Ie]...);
+}
 
 //
 // Utility for exploding tuples into functions

@@ -31,7 +31,7 @@
 
 #pragma once
 
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
 #include <cutlass/sycl_complex.h>
 #include <cutlass/sycl_fp16.h>
 #else

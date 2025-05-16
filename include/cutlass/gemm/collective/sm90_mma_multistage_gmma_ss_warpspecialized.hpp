@@ -289,7 +289,7 @@ struct CollectiveMma<
       --k_tile_count;
 
       // UNLOCK smem_pipe_write
-      pipeline.producer_commit(smem_pipe_write, cutlass::arch::cpasync_barrier_arrive);
+      pipeline.template producer_commit<cutlass::arch::cpasync_barrier_arrive>(smem_pipe_write);
 
       // Advance smem_pipe_write
       ++smem_pipe_write;
@@ -308,7 +308,7 @@ struct CollectiveMma<
       ++k_tile_iter;
 
       // UNLOCK smem_pipe_write
-      pipeline.producer_commit(smem_pipe_write, cutlass::arch::cpasync_barrier_arrive);
+      pipeline.template producer_commit<cutlass::arch::cpasync_barrier_arrive>(smem_pipe_write);
 
       // Advance smem_pipe_write
       ++smem_pipe_write;

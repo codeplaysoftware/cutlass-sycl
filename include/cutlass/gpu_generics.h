@@ -38,8 +38,10 @@
 
 #if defined(CUTLASS_ENABLE_SYCL)
 #include <sycl/sycl.hpp>
+#if !defined(__CUDA__)
 #include <syclcompat.hpp>
-#endif
+#endif // !defined(__CUDA__)
+#endif // defined(CUTLASS_ENABLE_SYCL)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -321,6 +323,28 @@ T shfl_xor_sync(
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Needed for CUTLASS_TRACE_HOST
+
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
+namespace syclcompat {
+static inline std::ostream& operator<<(std::ostream &os, const dim3& dims)
+{
+    os << dims.x << ", " << dims.y << ", " << dims.z;
+    return os;
+}
+}
+#endif
+
+#if defined(CUTLASS_ENABLE_SYCL) && defined(__CUDA__)
+static inline std::ostream& operator<<(std::ostream &os, const dim3 &dims)
+{
+    os << dims.x << ", " << dims.y << ", " << dims.z;
+    return os;
+}
+#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /*
  * The CUDA API has functions and types in the global namespace. Ideally, we'd generalize them for both, CUDA and SYCL,
  * but that requires major changes in Cutlass. To avoid that, we redefine them in the Cutlass namespace that is the base
@@ -328,7 +352,7 @@ T shfl_xor_sync(
  * with CUDA definitions. When using CUDA, only the global definitions are available. This way we don't have to modify
  * the codebase, and we can rely on the compiler to select the right definition in both cases.
  */
-#if defined(CUTLASS_ENABLE_SYCL)
+#if defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
 
 namespace cutlass {
 
@@ -464,6 +488,6 @@ cudaError_t cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(
 namespace cute {
   using dim3 = syclcompat::dim3;
 }
-#endif
+#endif // defined(CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

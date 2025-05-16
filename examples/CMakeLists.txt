@@ -30,6 +30,10 @@
 
 set(CUTLASS_EXAMPLES_COMMON_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/common)
 
+if (SYCL_NVIDIA_TARGET)
+  find_package(CUDAToolkit)
+endif()
+
 add_custom_target(cutlass_examples)
 add_custom_target(test_examples)
 
@@ -56,10 +60,21 @@ function(cutlass_example_add_executable NAME)
     ${NAME}
     PRIVATE
     CUTLASS
-    cutlass_tools_util_includes
+    cutlass_library_includes
     $<$<BOOL:${CUTLASS_ENABLE_CUBLAS}>:nvidia::cublas>
     $<$<BOOL:${ADD_CUDA}>:cuda>
     )
+
+  if (SYCL_NVIDIA_TARGET)
+    target_link_libraries(
+      ${NAME}
+      PRIVATE
+      CUDA::cudart
+      CUDA::cuda_driver
+    )
+
+    target_compile_definitions(${NAME} PRIVATE  __CUDACC_VER_MAJOR__=${CUDAToolkit_VERSION_MAJOR} __CUDACC_VER_MINOR__=${CUDAToolkit_VERSION_MINOR})
+  endif()
 
   target_include_directories(
     ${NAME}
@@ -174,13 +189,33 @@ foreach(EXAMPLE
     add_subdirectory(${EXAMPLE})
   endforeach()
 else()
-  foreach(EXAMPLE
+  set(EXAMPLES
     14_ampere_tf32_tensorop_gemm
     35_gemm_softmax
     cute
     sycl
+  )
+
+  if (SYCL_NVIDIA_TARGET)
+    list(APPEND EXAMPLES
+      48_hopper_warp_specialized_gemm
+      49_hopper_gemm_with_collective_builder
+      50_hopper_gemm_with_epilogue_swizzle
+      51_hopper_gett
+      52_hopper_gather_scatter_fusion
+      53_hopper_gemm_permute
+      54_hopper_fp8_warp_specialized_gemm
+      55_hopper_mixed_dtype_gemm
+      56_hopper_ptr_array_batched_gemm
+      57_hopper_grouped_gemm
+      61_hopper_gemm_with_topk_and_softmax
+      63_hopper_gemm_with_weight_prefetch
+      # 67_hopper_fp8_warp_specialized_gemm_with_blockwise_scaling # error: SYCL kernel cannot call a variadic function
+      69_hopper_mixed_dtype_grouped_gemm
     )
+  endif()
+
+  foreach(EXAMPLE ${EXAMPLES})
     add_subdirectory(${EXAMPLE})
   endforeach()
 endif()
-

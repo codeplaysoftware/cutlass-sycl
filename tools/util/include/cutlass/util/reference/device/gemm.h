@@ -99,6 +99,20 @@ void compute_gemm(
   );
 
   // Launch a GEMM kernel
+#if defined(CUTLASS_ENABLE_SYCL)
+  syclcompat::launch<
+    kernel::Gemm<
+    TensorRef<ElementA, LayoutA>,
+    TensorRef<ElementB, LayoutB>,
+    TensorRef<ElementC, LayoutC>,
+    ScalarType,
+    AccumulatorType,
+    OutputTile,
+    InnerProductOp,
+    ConvertOp
+  >>(syclcompat::dim3(grid.x, grid.y, grid.z),
+     syclcompat::dim3(block.x, block.y, block.z),
+#else
   kernel::Gemm<
     TensorRef<ElementA, LayoutA>,
     TensorRef<ElementB, LayoutB>,
@@ -109,6 +123,7 @@ void compute_gemm(
     InnerProductOp,
     ConvertOp
   ><<< grid, block >>>(
+#endif
     problem_size,
     alpha,
     tensor_a,
@@ -333,6 +348,20 @@ void BatchedGemm(
     batch_count
   );
 
+#if defined(CUTLASS_ENABLE_SYCL)
+  syclcompat::launch<
+    kernel::BatchedGemm<
+    TensorRefCollectionA,
+    TensorRefCollectionB,
+    TensorRefCollectionC,
+    ScalarType,
+    AccumulatorType,
+    OutputTile,
+    InnerProductOp,
+    ConvertOp
+  >>(syclcompat::dim3(grid.x, grid.y, grid.z),
+     syclcompat::dim3(block.x, block.y, block.z),
+#else
   // Launch a GEMM kernel
   kernel::BatchedGemm<
     TensorRefCollectionA,
@@ -344,6 +373,7 @@ void BatchedGemm(
     InnerProductOp,
     ConvertOp
   ><<< grid, block >>>(
+#endif
     problem_size,
     alpha,
     tensor_a,

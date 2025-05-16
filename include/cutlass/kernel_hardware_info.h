@@ -31,9 +31,11 @@
 #pragma once
 
 #include "cutlass/device_kernel.h"
-#if !defined(__CUDACC_RTC__) && !defined(CUTLASS_ENABLE_SYCL)
+#if !defined(__CUDACC_RTC__)
+#if !defined(CUTLASS_ENABLE_SYCL)
 #include "cuda_runtime.h"
 #include "cutlass/cluster_launch.hpp"
+#endif
 #include "cutlass/trace.h"
 #endif
 #include <cute/int_tuple.hpp>
@@ -58,12 +60,12 @@ struct KernelHardwareInfo {
   // Methods
   //
 
-#if defined (CUTLASS_ENABLE_SYCL)
+#if defined (CUTLASS_ENABLE_SYCL) && !defined(__CUDA__)
   static inline int
   query_device_multiprocessor_count(int device_id = 0) {
     auto& dev = syclcompat::get_device(device_id);
     int multiprocessor_count = 1;
-    //TODO (Codeplay): Replace with device.get_info<sycl::ext::oneapi::info::device::num_compute_units>() once available 
+    //TODO (Codeplay): Replace with device.get_info<sycl::ext::oneapi::info::device::num_compute_units>() once available
 #if defined __SYCL_CUDA_ARCH__
     multiprocessor_count = dev.get_info<sycl::info::device::max_compute_units>();
 #elif defined SYCL_INTEL_TARGET

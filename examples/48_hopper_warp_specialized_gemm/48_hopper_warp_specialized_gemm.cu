@@ -510,7 +510,7 @@ int main(int argc, char const **args) {
   //
 
 #if defined(CUTLASS_ARCH_MMA_SM90_SUPPORTED)
-  run<Gemm>(options);
+  return run<Gemm>(options);
 #endif
 
   return 0;

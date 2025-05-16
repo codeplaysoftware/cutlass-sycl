@@ -247,7 +247,7 @@ struct ExampleRunner {
       float abs_ref = fabs((float)vector_Input_Ref.at(i));
       float relative_diff = abs_ref > abs_tol ? abs_diff / abs_ref : 0;
       if ( (isnan(abs_diff) || isinf(abs_diff)) ||  (abs_diff > abs_tol && relative_diff > rel_tol)) {
-        printf("i = %d diff = %f, {%f, %f}.\n", i, abs_diff, (float)(vector_Input.at(i)), (float)(vector_Input_Ref.at(i)));
+        printf("i = %ld diff = %f, {%f, %f}.\n", i, abs_diff, (float)(vector_Input.at(i)), (float)(vector_Input_Ref.at(i)));
         return false;
       }
 

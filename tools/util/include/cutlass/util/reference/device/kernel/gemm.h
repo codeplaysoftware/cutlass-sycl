@@ -59,7 +59,7 @@ template <
   typename InnerProductOp,
   typename ConvertOp
 >
-__global__ void Gemm(
+CUTLASS_GLOBAL void Gemm(
   gemm::GemmCoord problem_size,
   ScalarType alpha,
   TensorRefA tensor_a,
@@ -110,7 +110,7 @@ template <
   typename InnerProductOp,
   typename ConvertOp
 >
-__global__ void BatchedGemm(
+CUTLASS_GLOBAL void BatchedGemm(
   gemm::GemmCoord problem_size,
   ScalarType alpha,
   TensorRefCollectionA tensor_collection_a,

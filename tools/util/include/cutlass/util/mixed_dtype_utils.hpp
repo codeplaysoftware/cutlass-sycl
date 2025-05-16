@@ -192,7 +192,6 @@ static void dequantize(DequantizedElement* dq_buffer,
       ElementZero, decltype(scale_layout_bcast), decltype(thr_layout)>>(
       blocks, tpb, dq_buffer, q_buffer, operand_layout, scale_buffer,
       zero_buffer, scale_layout_bcast, thr_layout);
-
   syclcompat::wait_and_throw();
 #else
   dequantize_kernel<<<blocks, tpb, 0, stream>>>(dq_buffer, q_buffer, operand_layout, scale_buffer, zero_buffer, scale_layout_bcast, thr_layout);
@@ -463,11 +462,19 @@ void reorder_tensor(
   auto tiled_D = group_modes<3,rank_v<LayoutDst>>(tiled_divide(D, TileShape{}));
   dim3 blocks{unsigned(size<1>(tiled_D)), 1u, unsigned(size<3>(tiled_D))};
 
-#ifndef CUTLASS_ENABLE_SYCL
+#if defined(CUTLASS_ENABLE_SYCL)
+  syclcompat::dim3 sycl_grid{blocks.x, blocks.y, blocks.z};
+  syclcompat::launch<reorder_tensor_kernel<
+    TileShape,
+    typename decltype(S)::engine_type, typename decltype(S)::layout_type,
+    typename decltype(D)::engine_type, typename decltype(D)::layout_type,
+    decltype(tiled_copy)
+    >>(sycl_grid, NumThreads,
+      S, D, tiled_copy);
+  syclcompat::wait_and_throw();
+#else
   reorder_tensor_kernel<TileShape><<<blocks, NumThreads>>>(S, D, tiled_copy);
   CUDA_CHECK(cudaDeviceSynchronize());
-#else
-  CUTE_INVALID_CONTROL_PATH("Unimplemented/untested code path");
 #endif
 }
 

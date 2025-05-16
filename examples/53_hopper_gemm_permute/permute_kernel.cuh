@@ -47,7 +47,7 @@ namespace example
  * For row major, the inputs must be switched accordingly.
 */
 template<bool Batched, typename Element, typename Permute>
-__global__ void
+CUTLASS_GLOBAL void
 permute_kernel(Element const* __restrict__ input,
                Element* __restrict__ output,
                Permute permute,
@@ -82,11 +82,22 @@ void permute(Element const* input,
 
   cutlass::FastDivmod stride_divmod(stride);
   dim3 blocks(hw_info.sm_count, 1, batch_count);
+#if defined(CUTLASS_ENABLE_SYCL)
+  syclcompat::dim3 sycl_grid(blocks.x, blocks.y, blocks.z);
+  syclcompat::launch<permute_kernel<Batched, cute::uint128_t, Permute>>(sycl_grid, 1024, 
+                                            reinterpret_cast<cute::uint128_t const *>(input), 
+                                            reinterpret_cast<cute::uint128_t *>(output),
+                                            permute_upcast,
+                                            num_elems_upcast,
+                                            stride_upcast);
+
+#else
   permute_kernel<Batched><<<blocks, 1024>>>(reinterpret_cast<cute::uint128_t const *>(input), 
                                             reinterpret_cast<cute::uint128_t *>(output),
                                             permute_upcast,
                                             num_elems_upcast,
                                             stride_upcast);
+#endif
 }
 
 } // namespace example

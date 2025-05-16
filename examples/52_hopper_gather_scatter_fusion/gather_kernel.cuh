@@ -37,7 +37,7 @@ namespace example
 
 // Naive grid-stride loop implementation of gather
 template<typename Element, typename Func>
-__global__ void
+CUTLASS_GLOBAL void
 gather_kernel(Element const * __restrict__ input,
               Element       * __restrict__ output,
               Func func,
@@ -76,17 +76,28 @@ gather(Element const * input,
 
   cutlass::FastDivmod stride_divmod(stride_upcast);
   dim3 blocks(hw_info.sm_count, 1, batch_size);
+#if defined(CUTLASS_ENABLE_SYCL)
+  syclcompat::dim3 sycl_grid(blocks.x, blocks.y, blocks.z);
+  syclcompat::launch<gather_kernel<uint128_t,Func>>(sycl_grid, 1024,
+                                  reinterpret_cast<cute::uint128_t const *>(input),
+                                  reinterpret_cast<cute::uint128_t *>(output),
+                                  func,
+                                  num_elems_input_upcast,
+                                  num_elems_output_upcast,
+                                  stride_divmod);
+#else
   gather_kernel<<<blocks, 1024>>>(reinterpret_cast<cute::uint128_t const *>(input),
                                   reinterpret_cast<cute::uint128_t *>(output),
                                   func,
                                   num_elems_input_upcast,
                                   num_elems_output_upcast,
                                   stride_divmod);
+#endif
 }
 
 // Naive grid-stride loop implementation of scatter
 template<typename Element, typename Func>
-__global__ void
+CUTLASS_GLOBAL void
 scatter_kernel(Element const * __restrict__ input,
                Element       * __restrict__ output,
                Func func,
@@ -125,12 +136,23 @@ scatter(Element const * input,
 
   cutlass::FastDivmod stride_divmod(stride_upcast);
   dim3 blocks(hw_info.sm_count, 1, batch_size);
+#if defined(CUTLASS_ENABLE_SYCL)
+  syclcompat::dim3 sycl_grid(blocks.x, blocks.y, blocks.z);
+  syclcompat::launch<scatter_kernel<uint128_t,Func>>(sycl_grid, 1024,
+                                   reinterpret_cast<cute::uint128_t const *>(input),
+                                   reinterpret_cast<cute::uint128_t *>(output),
+                                   func,
+                                   num_elems_input_upcast,
+                                   num_elems_output_upcast,
+                                   stride_divmod);
+#else
   scatter_kernel<<<blocks, 1024>>>(reinterpret_cast<cute::uint128_t const *>(input),
                                    reinterpret_cast<cute::uint128_t *>(output),
                                    func,
                                    num_elems_input_upcast,
                                    num_elems_output_upcast,
                                    stride_divmod);
+#endif
 }
 
 } // namespace example

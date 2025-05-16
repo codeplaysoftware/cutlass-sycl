@@ -233,10 +233,6 @@ void GemmComplex(
   int const kMblock = 4;
   int const kNblock = 4;
 
-#if defined (CUTLASS_ENABLE_SYCL)
-using syclcompat::dim3;
-#endif
-
   dim3 block(16, 8);
   dim3 grid(
     (problem_size.m() + block.x * kMblock - 1) / (block.x * kMblock),
@@ -246,38 +242,23 @@ using syclcompat::dim3;
 
   if (grid.y <= std::numeric_limits<uint16_t>::max()) {
 #if defined(CUTLASS_ENABLE_SYCL)
-
+  syclcompat::dim3 sycl_grid(grid.x, grid.y, grid.z);
+  syclcompat::dim3 sycl_block(block.x, block.y, block.z);
   syclcompat::launch<kernel::GemmComplex<
-                      ElementA,
-                      LayoutA,
-                      ElementB,
-                      LayoutB,
-                      ElementC,
-                      LayoutC,
-                      ScalarType,
-                      ComputeType,
-                      ElementD,
-                      ConvertOp,
-                      InnerProductOp,
-                      kMblock,
-                      kNblock
-                    >>(grid, block, 
-                        problem_size,
-                        alpha,
-                        tensor_a,
-                        transform_a,
-                        tensor_b,
-                        transform_b,
-                        beta,
-                        tensor_c,
-                        tensor_d,
-                        initial_accum,
-                        batch_count,
-                        batch_stride_A,
-                        batch_stride_B,
-                        batch_stride_C,
-                        batch_stride_D
-                    );
+    ElementA,
+    LayoutA,
+    ElementB,
+    LayoutB,
+    ElementC,
+    LayoutC,
+    ScalarType,
+    ComputeType,
+    ElementD,
+    ConvertOp,
+    InnerProductOp,
+    kMblock,
+    kNblock
+  >>(sycl_grid, sycl_block,
 #else
     kernel::GemmComplex<
       ElementA,
@@ -294,6 +275,7 @@ using syclcompat::dim3;
       kMblock,
       kNblock
     ><<< grid, block >>>(
+#endif
       problem_size,
       alpha,
       tensor_a,
@@ -310,7 +292,6 @@ using syclcompat::dim3;
       batch_stride_C,
       batch_stride_D
     );
-#endif
   } else {
     // Using bigger thread tile size
     int const kBigMblock = 4;
@@ -324,37 +305,23 @@ using syclcompat::dim3;
     );
 
 #if defined (CUTLASS_ENABLE_SYCL)
+  syclcompat::dim3 sycl_Biggrid(Biggrid.x, Biggrid.y, Biggrid.z);
+  syclcompat::dim3 sycl_Bigblock(Bigblock.x, Bigblock.y, Bigblock.z);
   syclcompat::launch<kernel::GemmComplex<
-                      ElementA,
-                      LayoutA,
-                      ElementB,
-                      LayoutB,
-                      ElementC,
-                      LayoutC,
-                      ScalarType,
-                      ComputeType,
-                      ElementD,
-                      ConvertOp,
-                      InnerProductOp,
-                      kBigMblock,
-                      kBigNblock
-                    >>(Biggrid, Bigblock, 
-                        problem_size,
-                        alpha,
-                        tensor_a,
-                        transform_a,
-                        tensor_b,
-                        transform_b,
-                        beta,
-                        tensor_c,
-                        tensor_d,
-                        initial_accum,
-                        batch_count,
-                        batch_stride_A,
-                        batch_stride_B,
-                        batch_stride_C,
-                        batch_stride_D
-                    );
+    ElementA,
+    LayoutA,
+    ElementB,
+    LayoutB,
+    ElementC,
+    LayoutC,
+    ScalarType,
+    ComputeType,
+    ElementD,
+    ConvertOp,
+    InnerProductOp,
+    kBigMblock,
+    kBigNblock
+  >>(sycl_Biggrid, sycl_Bigblock,
 #else
     kernel::GemmComplex<
       ElementA,
@@ -371,6 +338,7 @@ using syclcompat::dim3;
       kBigMblock,
       kBigNblock
     ><<< Biggrid, Bigblock >>>(
+#endif
       problem_size,
       alpha,
       tensor_a,
@@ -387,7 +355,6 @@ using syclcompat::dim3;
       batch_stride_C,
       batch_stride_D
     );
-#endif
   }
 }
 

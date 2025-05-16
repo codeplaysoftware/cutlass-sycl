@@ -226,7 +226,7 @@ cooperative_gemm_kernel(GMemALayout gmem_a_layout,
 
     constexpr uint32_t copy_max_vec_bytes = CopyMaxVecBits / 8;
 
-    auto smem_buf = reinterpret_cast<cutlass::float4*>((char*)base_smem);
+    auto smem_buf = reinterpret_cast<float4*>((char*)base_smem);
 
     auto* smem_ptr = reinterpret_cast<unsigned char*>(smem_buf);
     auto* smem_ptr_a = smem_ptr;
@@ -301,7 +301,7 @@ cooperative_gemm_kernel_rmem_c(GMemALayout gmem_a_layout,
 
     constexpr uint32_t copy_max_vec_bytes = CopyMaxVecBits / 8;
 
-    auto smem_buf = reinterpret_cast<cutlass::float4*>((char*)base_smem);
+    auto smem_buf = reinterpret_cast<float4*>((char*)base_smem);
     auto* smem_ptr = reinterpret_cast<unsigned char*>(smem_buf);
     auto* smem_ptr_a = smem_ptr;
     auto* smem_ptr_b = smem_ptr_a + round_up((sizeof(TA) * cosize(smem_a_layout)), copy_max_vec_bytes);

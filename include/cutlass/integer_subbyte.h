@@ -228,7 +228,6 @@ struct sizeof_bits<integer_subbyte<Bits,Signed>> {
   static constexpr int value = Bits;
 };
 
-
 /// Defines the size of an element in bits - specialized for bin1_t
 template <>
 struct sizeof_bits<bin1_t> {

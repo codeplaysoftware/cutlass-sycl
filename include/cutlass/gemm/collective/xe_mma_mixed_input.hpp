@@ -311,7 +311,12 @@ public:
     using DstType = typename EngineOut::value_type;
 
     if constexpr (sizeof_bits_v<SrcType> < 8) {
-      convert_int_subbyte_to_half(tCrA_mma, tCrA_load);
+      // TODO (Codeplay): Current NumericArrayConverter doesn't work for int4 on intel Xe, just workaround and
+      // hardcode here for functionality test, will remove this branch in the future.
+      #pragma unroll
+      for (int i = 0; i < decltype(size(tCrA_mma))::value; i++) {
+        tCrA_mma[i] = static_cast<DstType>(tCrA_load[i].get());
+      }
     } else {
       auto const& src = tCrA_load(_, _, _);
       auto const& dst = tCrA_mma(_, _, _);

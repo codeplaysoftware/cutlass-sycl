@@ -654,6 +654,7 @@ struct TiledMMAHelper{
 private:
   using AtomShape = typename MMA_Atom::Shape_MNK;
 
+  static_assert(size(WarpLayout{}) == cosize(WarpLayout{}), "Invalid WarpLayout: not a packed warp layout");
   // Represents the canonical MMA block which would be handled by these subgroups without permutation.
   // product_each(shape(...)) converts the layout into a tiler by taking only the shapes
   // e.g. (8,8):(1,8) -> 64

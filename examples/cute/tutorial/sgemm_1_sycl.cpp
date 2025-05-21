@@ -39,6 +39,26 @@
 #include "cutlass/util/sycl_event_manager.hpp"
 #include "cutlass/util/GPU_Clock.hpp"
 
+namespace syclcompat {
+  template <class F, int Dim>
+  sycl::event launch(const sycl::nd_range<Dim> &range, sycl::queue q, const F& f) {
+    return q.parallel_for(detail::transform_nd_range<Dim>(range),  [=](sycl::nd_item<Dim>) { f(); });
+  }
+  template <class F, int Dim>
+  sycl::event launch(const sycl::nd_range<Dim> &range, const F& f) {
+    return launch(range, get_default_queue(), f);
+  }
+  // Alternative launch through dim3 objects
+  template <class F>
+  sycl::event launch(const dim3 &grid, const dim3 &threads, sycl::queue q, const F& f) {
+    return launch(sycl::nd_range<3>{grid * threads, threads}, q, f);
+  }
+  template <class F>
+  sycl::event launch(const dim3 &grid, const dim3 &threads, const F& f) {
+    return launch(grid, threads, get_default_queue(), f);
+  }
+}
+
 template <class ProblemShape, class CtaTiler,
           class TA, class AStride, class ASmemLayout, class AThreadLayout,
           class TB, class BStride, class BSmemLayout, class BThreadLayout,
@@ -283,16 +303,12 @@ gemm_nt(int m, int n, int k,
   auto dimBlock = syclcompat::dim3(size(tC));
   auto dimGrid  = syclcompat::dim3(size(ceil_div(M, bM)), size(ceil_div(N, bN)));
 
-  auto event = syclcompat::launch<
-      gemm_device<decltype(prob_shape), decltype(cta_tiler),
-                  TA, decltype(dA), decltype(sA), decltype(tA),
-                  TB, decltype(dB), decltype(sB), decltype(tB),
-                  TC, decltype(dC), decltype(sC), decltype(tC),
-                  Alpha, Beta>>(dimGrid, dimBlock, prob_shape, cta_tiler,
-                                A, dA, sA, tA,
-                                B, dB, sB, tB,
-                                C, dC, sC, tC,
-                                alpha, beta);
+  auto event = syclcompat::launch(dimGrid, dimBlock, [=]
+                                  { gemm_device(prob_shape, cta_tiler,
+                                                A, dA, sA, tA,
+                                                B, dB, sB, tB,
+                                                C, dC, sC, tC,
+                                                alpha, beta); });
   EventManager::getInstance().addEvent(event);
 }
 

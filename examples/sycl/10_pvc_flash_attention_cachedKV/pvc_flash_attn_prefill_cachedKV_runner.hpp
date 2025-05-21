@@ -60,14 +60,15 @@ struct Options {
   bool error;
   bool is_causal;
   bool varlen = false;
+  bool use_paged_kv = false;
   std::string scheduler;
 
-  int batch, num_heads_q, num_heads_kv, seq_len_qo, seq_len_kv, seq_len_kv_cache, head_size_qk, head_size_vo, iterations;
+  int batch, num_heads_q, num_heads_kv, seq_len_qo, seq_len_kv, seq_len_kv_cache, page_size, head_size_qk, head_size_vo, iterations;
   float softmax_scale;
 
   Options()
-      : help(false), error(false), is_causal(false), varlen(false), batch(32), num_heads_q(16), num_heads_kv(16), seq_len_qo(512), head_size_qk(128),
-        seq_len_kv(512), seq_len_kv_cache(512), head_size_vo(128), iterations(100), softmax_scale(1.f), scheduler("Individual") {}
+      : help(false), error(false), is_causal(false), varlen(false), use_paged_kv(false), batch(32), num_heads_q(16), num_heads_kv(16), seq_len_qo(512), head_size_qk(128),
+        seq_len_kv(512), seq_len_kv_cache(512), page_size(128), head_size_vo(128), iterations(100), softmax_scale(1.f), scheduler("Individual") {}
 
   // Parses the command line
   void parse(int argc, char const **args) {
@@ -84,6 +85,16 @@ struct Options {
 
     if (cmd.check_cmd_line_flag("varlen")) {
       varlen = true;
+    }
+
+    if (cmd.check_cmd_line_flag("use_paged_kv")) {
+      use_paged_kv = true;
+
+      cmd.get_cmd_line_argument("page_size", page_size, 128);
+      if (seq_len_kv_cache % page_size != 0) {
+        std::cerr << "Invalid: seq_len_kv_cache must be divisible by page_size" << std::endl;
+        return;
+      }
     }
 
     cmd.get_cmd_line_argument("scheduler", scheduler, std::string("Individual"));
@@ -115,7 +126,9 @@ struct Options {
         << "  --num_heads_kv=<int>        Sets the Number of Attention Heads for Query input in the Multi-Head Self Attention module\n"
         << "  --seq_len_qo=<int>          Sets the Sequence length of the Query input in Multi-Head Self Attention module\n"
         << "  --seq_len_kv=<int>          Sets the Sequence length of the Key-Value pair in Multi-Head Self Attention module\n"
-        << "  --seq_len_kv_cache=<int>    Sets the Sequence length of the Key-Value pair in Multi-Head Self Attention module\n"
+        << "  --seq_len_kv_cache=<int>    Sets the Sequence length of the cached Key-Value pair in Multi-Head Self Attention module\n"
+        << "  --use_paged_kv              Use paged (non-contiguous) KV cache. Default is contiguous KV Cache\n"
+        << "  --page_size=<int>           Block size for paged KV cache. Default is 128\n"
         << "  --head_size_qk=<int>        Sets the Attention Head dimension of the 1st Matrix Multiplication in Multi-Head Self Attention module\n"
         << "  --head_size_vo=<int>        Sets the Attention Head dimension of the 2nd Matrix Multiplication in Multi-Head Self Attention module\n"
         << "  --iterations=<int>          Iterations\n\n";
@@ -178,6 +191,13 @@ template <class FMHAPrefillCachedKernel, bool isVarLen> struct ExampleRunner {
   cutlass::DeviceAllocation<int> device_cumulative_seqlen_q;
   cutlass::DeviceAllocation<int> device_cumulative_seqlen_kv;
   cutlass::DeviceAllocation<int> device_cumulative_seqlen_kv_cache;
+
+  struct PagedKVParams {
+      cutlass::DeviceAllocation<int> page_table;
+      int page_size = 0;
+      int num_pages_per_seq = 0;
+  };
+  PagedKVParams paged_kv_cache;
 
   //
   // Methods
@@ -503,6 +523,29 @@ template <class FMHAPrefillCachedKernel, bool isVarLen> struct ExampleRunner {
     block_O.reset(batch * num_heads_q * seq_len_qo * head_size_vo);
     block_ref_O.reset(batch * num_heads_q * seq_len_qo * head_size_vo);
 
+    if (options.use_paged_kv) {
+        paged_kv_cache.page_size = options.page_size;
+        int num_pages_per_seq = ((seq_len_kv_cache + paged_kv_cache.page_size - 1) / paged_kv_cache.page_size);
+        int num_pages = num_pages_per_seq * batch;
+        paged_kv_cache.num_pages_per_seq = num_pages_per_seq;
+
+        paged_kv_cache.page_table.reset(batch * num_pages_per_seq);
+        // initialize block table with random mapping
+        std::vector<int> page_mapping(batch * num_pages_per_seq);
+        std::vector<int> physical_pages(num_pages);
+        std::iota(physical_pages.begin(), physical_pages.end(), 0);
+        // shuffle physical pages for non-contiguous layout
+        std::shuffle(physical_pages.begin(), physical_pages.end(), std::mt19937{ std::random_device{}() });
+        for (int b = 0; b < batch; ++b) {
+            for (int blk = 0; blk < num_pages_per_seq; ++blk) {
+                int logical_idx = b * num_pages_per_seq + blk;
+                page_mapping[logical_idx] = physical_pages[logical_idx];
+            }
+        }
+        syclcompat::memcpy(paged_kv_cache.page_table.get(), page_mapping.data(), page_mapping.size() * sizeof(int));
+        syclcompat::wait();
+    }
+
     initialize_block(block_Q, seed + 2023);
     initialize_block(block_K, seed + 2022);
     initialize_block(block_V, seed + 2021);
@@ -580,7 +623,10 @@ template <class FMHAPrefillCachedKernel, bool isVarLen> struct ExampleRunner {
         block_K.get(), stride_K,
         block_V.get(), stride_V,
         block_K_cache.get(), stride_K_cache,
-        block_V_cache.get(), stride_V_cache},
+        block_V_cache.get(), stride_V_cache,
+        options.use_paged_kv ? paged_kv_cache.page_table.get() : nullptr,
+        options.use_paged_kv ? paged_kv_cache.page_size : 0,
+        options.use_paged_kv ? paged_kv_cache.num_pages_per_seq : 0},
         {options.softmax_scale},
         {block_O.get(), stride_O},
         hw_info};
@@ -653,7 +699,7 @@ template <class FMHAPrefillCachedKernel, bool isVarLen> struct ExampleRunner {
 
 template <bool Causal, typename TileShape, typename TiledMma> struct FMHAConfig {
 
-  template <bool isVarLen, class Scheduler>
+  template <bool isVarLen, bool PagedKV, class Scheduler>
   static int run(const Options &options) {
     //
     // Run examples
@@ -696,7 +742,8 @@ template <bool Causal, typename TileShape, typename TiledMma> struct FMHAConfig 
         GmemTiledCopyQ, // Q
         GmemTiledCopyK, // K
         GmemTiledCopyV, // V,
-        Causal>;
+        Causal,
+        PagedKV>;
 
     using FMHAPrefillCachedKernel = cutlass::flash_attention::kernel::FMHAPrefillCached<ProblemShapeType, CollectiveMainloop,
                                                                      CollectiveSoftmaxEpilogue, CollectiveEpilogue, Scheduler>;
@@ -708,18 +755,23 @@ template <bool Causal, typename TileShape, typename TiledMma> struct FMHAConfig 
   }
 
   static int run(const Options &options) {
-    if(options.varlen) {
-      if(options.scheduler.compare(std::string("Persistent")) == 0) {
-        return run<true, cutlass::flash_attention::PersistentScheduler>(options);
-      } else {
-        return run<true, cutlass::flash_attention::IndividualScheduler>(options);
-      }
+    const bool varlen = options.varlen;
+    const bool use_paged_kv = options.use_paged_kv;
+    const bool use_persistent = options.scheduler.compare("Persistent") == 0;
+
+    if (use_paged_kv) {
+      return use_persistent
+        ? run<false, true, cutlass::flash_attention::PersistentScheduler>(options)
+        : run<false, true, cutlass::flash_attention::IndividualScheduler>(options);
     } else {
-      if(options.scheduler.compare(std::string("Persistent")) == 0) {
-        return run<false, cutlass::flash_attention::PersistentScheduler>(options);
-      } else {
-        return run<false, cutlass::flash_attention::IndividualScheduler>(options);
-      }
+        if (varlen) {
+          return use_persistent
+            ? run<true, false, cutlass::flash_attention::PersistentScheduler>(options)
+            : run<true, false, cutlass::flash_attention::IndividualScheduler>(options);
+        }
+        return use_persistent
+          ? run<false, false, cutlass::flash_attention::PersistentScheduler>(options)
+          : run<false, false, cutlass::flash_attention::IndividualScheduler>(options);
     }
   }
 };

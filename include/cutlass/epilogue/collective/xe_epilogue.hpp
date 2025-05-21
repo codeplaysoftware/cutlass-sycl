@@ -295,8 +295,6 @@ public:
     auto sg_m_coord = m_coord * ATOM_M + sg_local_m_coord;
     auto sg_n_coord = n_coord * ATOM_N + sg_local_n_coord;
     auto sg_coord = make_coord(sg_m_coord, sg_n_coord, k_coord, l_coord);
-
-    bool is_C_load_needed = is_source_supported && fusion_callbacks.is_C_load_needed();
     
     // Represent the full output tensor
     Tensor mD_mnl = cute::get_xe_tensor(make_shape(M,N,L));
@@ -364,12 +362,12 @@ public:
       for (int epi_m = 0; epi_m < FragsM; epi_m++) {
         cst_callbacks.begin_loop(epi_m, epi_n);
 
-        if (is_C_load_needed) {
+        if (is_source_supported && fusion_callbacks.is_C_load_needed()) {
           //cordinates for C and D are the same
           copy(params.xe_load_c, tCgD(_, epi_m, epi_n), trC);
         }
 
-        cst_callbacks.previsit(epi_m, epi_n, 0, is_C_load_needed);
+        cst_callbacks.previsit(epi_m, epi_n, 0, is_source_supported && fusion_callbacks.is_C_load_needed());
 
         auto acc_frag_mn = acc_frag(_, epi_m, epi_n);
 

@@ -128,6 +128,10 @@ struct CollectiveMma<
 
   static constexpr int ScalePromotionInterval = ScaleGranularityK / size<2>(typename TiledMma::AtomShape_MNK{});
   static_assert(ScalePromotionInterval % 4 == 0, "ScalePromotionInterval must be a multiple of 4.");
+  static_assert(ScalePromotionInterval >= size<2>(TileShape{}) / tile_size<2>(TiledMma{}),
+    "ScalePromotionInterval must be greater than or equal to the number of stages of the MMA atom.");
+  static_assert(ScalePromotionInterval % (size<2>(TileShape{}) / tile_size<2>(TiledMma{})) == 0,
+    "ScalePromotionInterval must be a multiple of the number of stages of the MMA atom.");
   static constexpr int ScaleMsPerTile = size<0>(TileShape{}) / ScaleGranularityM;
   static constexpr int ScaleNsPerTile = size<1>(TileShape{}) / ScaleGranularityN;
 
@@ -213,7 +217,6 @@ struct CollectiveMma<
     StrideA dA;
     ElementB const* ptr_B;
     StrideB dB;
-    uint32_t mma_promotion_interval = 4;
     ElementBlockScale const* ptr_SFA;
     LayoutSFA layout_SFA;
     ElementBlockScale const* ptr_SFB;
@@ -380,16 +383,6 @@ struct CollectiveMma<
     if (IsTmaLoadSFB && !cutlass::detail::check_alignment<min_tma_aligned_elements_S>(args.layout_SFB)) {
       implementable = false;
       CUTLASS_TRACE_HOST("  CAN IMPLEMENT: Problem size doesn't meet the minimum alignment requirements for using TMA to load scale B.\n");
-    }
-
-    /* MMA promotion interval should be a multiple of 4, since each mainloop iteration would issue 4 MMA instructions. */
-    constexpr int pipe_k = size<2>(TileShape{}) / tile_size<2>(TiledMma{});
-    if (args.mma_promotion_interval % 4 != 0 ||
-        args.mma_promotion_interval != ScalePromotionInterval ||
-        args.mma_promotion_interval % pipe_k != 0 ||
-        pipe_k > args.mma_promotion_interval) {
-      implementable = false;
-      CUTLASS_TRACE_HOST("  CAN IMPLEMENT: Argument mma_promotion_interval is invalid.\n");
     }
 
     // We expect full tiles in K
@@ -614,7 +607,7 @@ struct CollectiveMma<
   CUTLASS_DEVICE void
   load_auxiliary(
       Params const& mainloop_params,
-      MainloopPipeline pipeline,
+      MainloopPipeline pipeline, 
       PipelineState smem_pipe_write,
       cute::tuple<TensorA, TensorB, TensorScaleA, TensorScaleB> const& load_inputs,
       BlockCoord const& blk_coord,
@@ -646,7 +639,7 @@ struct CollectiveMma<
 
     TiledCopy scale_copy_a = make_tiled_copy(CopyAtomSFA{},
       Layout<Shape<_32>>{}, Layout<Shape<_1>>{});
-    TiledCopy scale_copy_b = make_tiled_copy(CopyAtomSFB{},
+    TiledCopy scale_copy_b = make_tiled_copy(CopyAtomSFB{}, 
       Layout<Shape<_32>>{}, Layout<Shape<_1>>{});
     ThrCopy thr_scale_copy_a = scale_copy_a.get_slice(thread_idx);
     ThrCopy thr_scale_copy_b = scale_copy_b.get_slice(thread_idx);
@@ -785,21 +778,21 @@ struct CollectiveMma<
 
     // Block scaling
     Tensor sSFA = make_tensor(cute::make_smem_ptr(shared_tensors.smem_SFA.data()), make_layout(
-        make_shape(get<0>(shape(SmemLayoutSFA{})),
-                   get<1>(TileShape{}),
-                   make_shape(get<1>(shape(SmemLayoutSFA{})),
+        make_shape(get<0>(shape(SmemLayoutSFA{})), 
+                   get<1>(TileShape{}), 
+                   make_shape(get<1>(shape(SmemLayoutSFA{})), 
                    get<2>(shape(SmemLayoutSFA{})))),
-        make_stride(get<0>(stride(SmemLayoutSFA{})), _0{},
+        make_stride(get<0>(stride(SmemLayoutSFA{})), _0{}, 
                     make_stride(get<1>(stride(SmemLayoutSFA{})), get<2>(stride(SmemLayoutSFA{}))))
       ));                                                                                       // (BLK_M,BLK_N,(BLK_K,P))
     Tensor sSFB = make_tensor(cute::make_smem_ptr(shared_tensors.smem_SFB.data()), make_layout(
-        make_shape(get<0>(TileShape{}),
-                   get<0>(shape(SmemLayoutSFB{})),
-                   make_shape(get<1>(shape(SmemLayoutSFB{})),
+        make_shape(get<0>(TileShape{}), 
+                   get<0>(shape(SmemLayoutSFB{})), 
+                   make_shape(get<1>(shape(SmemLayoutSFB{})), 
                    get<2>(shape(SmemLayoutSFB{})))),
-        make_stride(_0{},
-                    get<0>(stride(SmemLayoutSFB{})),
-                    make_stride(get<1>(stride(SmemLayoutSFB{})),
+        make_stride(_0{}, 
+                    get<0>(stride(SmemLayoutSFB{})), 
+                    make_stride(get<1>(stride(SmemLayoutSFB{})), 
                     get<2>(stride(SmemLayoutSFB{}))))
       ));                                                                                       // (BLK_M,BLK_N,(BLK_K,P))
 
@@ -1001,7 +994,7 @@ struct CollectiveMma<
       // Advance smem_pipe_read and smem_pipe_release
       ++smem_pipe_release;
     }
-    if (k_tile_count == 1) {
+    if (k_tile_count) {
       pipeline.consumer_wait(smem_pipe_read, barrier_token);
 
       //

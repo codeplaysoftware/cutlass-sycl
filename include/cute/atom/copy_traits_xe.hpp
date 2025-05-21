@@ -2321,7 +2321,7 @@ template <class GShape>
 CUTE_HOST_DEVICE constexpr
 auto
 get_xe_tensor(GShape const& g_shape) {
-  return make_counting_tensor(make_identity_layout(g_shape));
+  return make_coord_tensor(make_identity_layout(g_shape));
 }
 
 } // end namespace cute

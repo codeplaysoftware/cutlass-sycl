@@ -1058,6 +1058,8 @@ struct MainloopDeviceAgnostic {
 };
 #endif
 
+// Mainloop schedule for array-based TMA
+
 template<
   int Stages_,
   int SchedulerPipelineStageCount_,

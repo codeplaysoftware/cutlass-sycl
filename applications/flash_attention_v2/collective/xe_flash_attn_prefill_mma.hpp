@@ -36,9 +36,7 @@
 #include "cute/algorithm/functional.hpp"
 #include "cute/atom/mma_atom.hpp"
 #include "cute/algorithm/gemm.hpp"
-#include "cutlass/util/packed_stride.hpp"
-
-#include "fmha_fusion.hpp"
+#include "cute/tensor_predicate.hpp"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +58,7 @@ CUTLASS_DEVICE auto convert_type(Tensor<Engine, Layout> const &tensor) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <class DispatchPolicy, class ProblemShapeType_,  class ElementQ_, class StrideQ_, class ElementK_, class StrideK_,
+template <class DispatchPolicy, class ProblemShapeType_, class ElementQ_, class StrideQ_, class ElementK_, class StrideK_,
           class ElementV_, class StrideV_, class MMAOperation_, class TileShapeQK_, class TileShapePV_, class SubgroupLayout_, class GmemTiledCopyQ_, class GmemTiledCopyK_,
           class GmemTiledCopyV_, bool CausalMask_>
 struct FlashPrefillMma {

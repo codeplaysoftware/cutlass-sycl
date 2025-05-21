@@ -75,7 +75,7 @@ public:
 
   static constexpr int SubgroupSize = DispatchPolicy::SubgroupSize;
 
-  static_assert(cute::rank(TileShapeOutPut{}) == 3, "TileShapeOutPut must be rank-3: [CTA_M_Q, CTA_N_V, CTA_N_QK, CTA_K_QK]");
+  static_assert(cute::rank(TileShapeOutPut{}) == 3, "TileShapeOutPut must be rank-3: [CTA_M_QO, CTA_N_VO, CTA_K_PV]");
   static_assert(cute::rank(StrideO{}) == 3, "StrideO must be rank-3: [seq_len_qo, head_size_vo, batch * num_heads]");
 
   using CopyThreadShape = Shape<_1, Int<SubgroupSize>>;
@@ -150,8 +150,8 @@ public:
   FlashPrefillEpilogue(Params const &params_, TensorStorage const &) : params(params_) {}
 
   template <class ProblemShape, class SequenceLengthShape, class TileCoord, class FragOut, class FragMax, class FragSum>
-  CUTLASS_DEVICE void operator()(ProblemShape problem_shape, SequenceLengthShape sequence_length_shape, TileCoord tile_coord, FragOut &out, FragMax const &max,
-                                 FragSum &sum) {
+  CUTLASS_DEVICE void operator()(ProblemShape problem_shape, SequenceLengthShape sequence_length_shape, TileCoord tile_coord, FragOut &out,
+                                 FragMax const &max,FragSum &sum) {
 
     using namespace cute;
 

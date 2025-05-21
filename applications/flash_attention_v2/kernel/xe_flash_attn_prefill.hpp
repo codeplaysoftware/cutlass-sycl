@@ -249,7 +249,7 @@ public:
       auto [seq_len_qo, seq_len_kv] = sequence_length_shape;
 
       // Calculate the seq_len_idx (blk_m_coord * get<0>(TileShapeOutPut{})) and check if it is still
-      // within bounds of the actual seq_len_qo (get<2>(logical_problem_shape)).
+      // within bounds of the actual seq_len_qo (get<0>(sequence_length_shape)).
       if (blk_m_coord * get<0>(TileShapeOutPut{}) >= seq_len_qo) {
         continue;
       }
@@ -282,7 +282,6 @@ public:
       auto tiled_prefetch_q = cute::prefetch_selector<Shape<Int<QK_BLK_M>, Int<cute::max(cute::gcd(QK_BLK_K, 64), 32)>>, Num_SGs>(mainloop_params.gmem_tiled_copy_q);
       auto tiled_prefetch_k = cute::prefetch_selector<Shape<Int<QK_BLK_N>, Int<cute::max(cute::gcd(QK_BLK_K, 64), 32)>>, Num_SGs>(mainloop_params.gmem_tiled_copy_k);
       auto tiled_prefetch_v = cute::prefetch_selector<Shape<Int<cute::max(cute::gcd(Epilogue_BLK_N, 64), 32)>, Int<Epilogue_BLK_K>>, Num_SGs>(mainloop_params.gmem_tiled_copy_v);
-      // The above line should change to the following as for 96, 128 gives better performance sinze the divsion to 32 is not odd // follwoing improve the performance for 96
       auto thr_prefetch_Q = tiled_prefetch_q.get_slice(thread_idx);
       auto thr_prefetch_K = tiled_prefetch_k.get_slice(thread_idx);
       auto thr_prefetch_V = tiled_prefetch_v.get_slice(thread_idx);
@@ -301,7 +300,6 @@ public:
       }
 
       // Allocate the tiled_mma and the accumulators for the (M,N) workgroup_shape
-      //Tensor out_reg = partition_fragment_C(TiledMmaOutput{}, take<0, 2>(TileShapePV{}));
       Tensor out_reg = make_tensor<ElementAccumulator>(AccumeShape{});
       
       // There are 16 workitem and 16 max per subgroup, each worktime containt 1 max and cumulatively, they calculate the
@@ -371,8 +369,9 @@ public:
             int row_idx = m * Vec + seq_coord;
             CUTLASS_PRAGMA_UNROLL
             for (int row = 0; row < Vec; row++, row_idx++) { // 8
-              if ((col_idx - full_tile_offset) > (row_idx - discard_seq_coord))
+              if (col_idx - full_tile_offset > row_idx - discard_seq_coord) {
                 tSr(row, m, n) = -INFINITY;
+              }
             }
           }
         }

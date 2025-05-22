@@ -38,3 +38,8 @@ cutlass_example_add_executable(
   06_pvc_decode_attention
   06_pvc_decode_attention.cpp
 )
+
+cutlass_example_add_executable(
+  06_pvc_prefill_attention_cachedKV
+  06_pvc_prefill_attention_prefill_cachedKV.cpp
+)

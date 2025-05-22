@@ -60,8 +60,8 @@ struct XeFlashIndividualTileScheduler {
       TileShape const& tile_shape) {
     using namespace cute;
     // problem_size = [batch, num_heads_q, num_heads_kv, seq_len_qo, seq_len_kv, head_size_qk, head_size_vo]
-    dim3 grid(size(ceil_div(shape<6>(problem_size), shape<1>(tile_shape))),
-              size(ceil_div(shape<3>(problem_size), shape<0>(tile_shape))),
+    dim3 grid(size(ceil_div(shape<3>(problem_size), shape<0>(tile_shape))), //seqlenqo
+              size(ceil_div(shape<6>(problem_size), shape<1>(tile_shape))),  //headsizevo
               size(shape<0>(problem_size) * shape<1>(problem_size)));
     return Params{ grid, {shape<1>(problem_size)} };
   }
@@ -82,7 +82,7 @@ struct XeFlashIndividualTileScheduler {
     int block_decode = BlockIdxZ();
     int bidh;
     params.divmod_num_heads(block_decode, bidh, block_decode);
-    return make_coord(BlockIdxX(), BlockIdxY(), block_decode, bidh);
+    return make_coord(BlockIdxY(), BlockIdxX(), block_decode, bidh);
   }
 
   CUTLASS_DEVICE
@@ -198,7 +198,7 @@ struct XeFlashPersistentTileScheduler {
       dev.template get_info<sycl::info::device::max_num_sub_groups>();
     // TODO (Codeplay): revert this back to std::min(params.num_blocks, params.hw_info.sm_count)
     // once performance issue is fixed.
-    dim3 grid(std::min(params.num_blocks, ceil_div(params.hw_info.sm_count * maxSubgroups, Num_SGs)), 1, 1);
+    dim3 grid(std::min(params.num_blocks, params.hw_info.sm_count), 1, 1);
     return grid;
   }
 

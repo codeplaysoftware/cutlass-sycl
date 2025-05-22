@@ -38,7 +38,6 @@ if(SYCL_INTEL_TARGET)
   add_subdirectory(07_pvc_dual_gemm)
   add_subdirectory(08_pvc_gemm_f8)
   add_subdirectory(09_pvc_gemm_with_sycl_queue)
-  add_subdirectory(10_pvc_flash_attention_cachedKV)
 endif()
 
 if (CUTLASS_ENABLE_SYCL)

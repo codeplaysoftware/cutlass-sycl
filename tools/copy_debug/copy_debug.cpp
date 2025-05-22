@@ -55,12 +55,20 @@ void copy_kernel(TensorS S) {
   }
   syncthreads();
 
-  using CopyThreadShape = Shape<_1, Int<SUBGROUP_SIZE>>;
   using traits_load = Copy_Traits<CopyInstruction, decltype(S)>;
   using Atom_load = Copy_Atom<traits_load, Element>;
+  constexpr int vector_size = size<1,0>(typename traits_load::SrcLayout{}) / sizeof_bits_v<Element>;
+  using VectorShape = std::conditional_t<traits_load::is_need_reversed,
+                                         Shape<Int<vector_size>, _1>,
+                                         Shape<_1, Int<vector_size>>>;
+  using CopyThreadShape = std::conditional_t<traits_load::is_need_reversed,
+                                             Shape<Int<SUBGROUP_SIZE>, _1>,
+                                             Shape<_1, Int<SUBGROUP_SIZE>>>;
+  using ScalarBlockShape = Shape<Int<get<0>(typename traits_load::BlockShape{}) * get<0>(VectorShape{})>, 
+                                 Int<get<1>(typename traits_load::BlockShape{}) * get<1>(VectorShape{})>>;
   auto tiled_copy_load = make_tiled_copy(Atom_load{}.with(S),
     Layout<CopyThreadShape>{},
-    make_layout(shape_div(typename traits_load::BlockShape{}, CopyThreadShape{})));
+    make_layout(shape_div(ScalarBlockShape{}, CopyThreadShape{})));
     
   auto thr_copy_load = tiled_copy_load.get_slice(ThreadIdxX());
 
@@ -89,15 +97,16 @@ void copy_kernel(TensorS S) {
     }
   }
   for(int i = 0;i < size(fragment); i++){
+    int val = static_cast<int>(static_cast<Element>(fragment(i)));
     if(thread(0)){
       print("\n    ");
     }
     for(int j=0;j<SUBGROUP_SIZE;j++){
       if(thread(j)){
-        if(fragment(i)<10) print(" ");
-        if(fragment(i)<100) print(" ");
-        if(fragment(i)<1000) print(" ");
-        print(static_cast<int>(fragment(i))); print("      ");
+        if(val<10) print(" ");
+        if(val<100) print(" ");
+        if(val<1000) print(" ");
+        print(val); print("      ");
       }
     }
   }
@@ -130,7 +139,8 @@ void copy(int global_M, int global_N) {
 int main(){
   // for 16b copies use integers as floating point types could lose precision for bigger indices
   // for 8b copies you have to work with overflow
-  copy<XE_2D_U16x32x32_LD_V, int16_t>(256, 256);
-  copy<XE_2D_U16x32x32_LD_N, int16_t>(256, 256);
+  // TODO(Codeplay): for 4b types the initialization does not correctly access subbyte types and only initializes every other elemeent
+  copy<XE_2D_U8x8x32_LD_N, uint8_t>(64, 64);
+  copy<XE_2D_U8x8x32_LD_N, uint4_t>(64, 64);
   return 0;
 }

@@ -153,8 +153,18 @@ namespace detail {
 template <class CopyOp, class = void>
 constexpr bool is_prefetch = false;
 
+#ifdef SYCL_INTEL_TARGET
+
+template <class CopyOp>
+constexpr bool is_prefetch<CopyOp, void_t<decltype(CopyOp{}.copy(nullptr, 0,0,0, {0,0}))>> = true;
+
+#else
+
+// TODO(Codeplay): Enable for SYCL_INTEL_TARGET.
 template <class CopyOp>
 constexpr bool is_prefetch<CopyOp, void_t<typename CopyOp::PREFETCH>> = is_same_v<CopyOp, typename CopyOp::PREFETCH>;
+
+#endif
 
 } // end namespace detail
 

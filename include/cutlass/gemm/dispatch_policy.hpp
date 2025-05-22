@@ -1048,6 +1048,11 @@ struct MainloopIntelW8A8 {
     using Schedule = KernelXe;
     using ClusterShape = Shape<_1, _1, _1>;
 };
+
+template<int Stages_, class KernelScheduler = KernelXePtrArrayCooperative>
+struct MainloopIntelXeXMX16GroupFP8 : MainloopIntelXeXMX16<Stages_, KernelScheduler> {
+};
+
 #endif
 
 #if defined(CUTLASS_ENABLE_SYCL)

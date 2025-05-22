@@ -1,4 +1,4 @@
-# Copyright (c) 2024 - 2024 Codeplay Software Ltd. All rights reserved.
+# Copyright (c) 2024 - 2025 Codeplay Software Ltd. All rights reserved.
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # Redistribution and use in source and binary forms, with or without
@@ -26,22 +26,14 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+set(TEST_BATCHES --l=2)
 
-if(SYCL_INTEL_TARGET)
-  add_subdirectory(00_pvc_gemm)
-  add_subdirectory(01_pvc_gemm_with_collective_builder)
-  add_subdirectory(02_pvc_gemm_mixed_dtype)
-  add_subdirectory(03_pvc_gemm_streamk)
-  add_subdirectory(04_pvc_grouped_gemm)
-  add_subdirectory(05_pvc_gemm_with_epilogues)
-  add_subdirectory(06_pvc_flash_attention)
-  add_subdirectory(07_pvc_dual_gemm)
-  add_subdirectory(08_pvc_gemm_f8)
-  add_subdirectory(09_pvc_gemm_with_sycl_queue)
-  add_subdirectory(10_pvc_flash_attention_cachedKV)
-  add_subdirectory(11_pvc_grouped_gemm_fp8)
-endif()
-
-if (CUTLASS_ENABLE_SYCL)
-  add_subdirectory(generics)
-endif()
+cutlass_example_add_executable(
+  11_pvc_grouped_gemm_fp8
+  11_pvc_grouped_gemm_fp8.cpp
+  TEST_COMMAND_OPTIONS
+  TEST_BATCHES
+)
+# TODO(codeplay): Remove these once IGC VectorAliasThreshold issue is fixed
+set_target_properties( 11_pvc_grouped_gemm_fp8 PROPERTIES CXX_COMPILER_LAUNCHER "IGC_VectorAliasBBThreshold=10000" )
+set_target_properties( 11_pvc_grouped_gemm_fp8 PROPERTIES CXX_LINKER_LAUNCHER "IGC_VectorAliasBBThreshold=10000" )

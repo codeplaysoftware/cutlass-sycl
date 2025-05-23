@@ -106,6 +106,15 @@ SYCL_DEVICE_BUILTIN(
         intptr_t baseoffset, int width_minus_one, int height_minus_one,
         int pitch_minus_one, cute::intel::coord_t coord));
 
+// 8bits NO transform transpose
+SYCL_DEVICE_BUILTIN(
+    cute::intel::ushort8  __builtin_IB_subgroup_block_read_cacheopts_transpose_u8_m32k8(
+        intptr_t baseoffset, int width_minus_one, int height_minus_one,
+        int pitch_minus_one, cute::intel::coord_t coord, int cache = 0));
+SYCL_DEVICE_BUILTIN(
+    cute::intel::ushort4  __builtin_IB_subgroup_block_read_cacheopts_transpose_u8_m32k4(
+        intptr_t baseoffset, int width_minus_one, int height_minus_one,
+        int pitch_minus_one, cute::intel::coord_t coord, int cache = 0));
 
 // 8bits VNNI transform No transpose
 SYCL_DEVICE_BUILTIN(
@@ -442,6 +451,67 @@ struct XE_2D_U8x32x32_LD_N {
 #endif
   }
 };
+
+struct XE_2D_U8x32x4_LD_T {
+  using BlockShape = Shape<_4, _32>;
+  using inst_dtype = uint8_t;
+  static constexpr bool is_transpose = true;
+
+  template <class T>
+  CUTE_HOST_DEVICE static void copy(const void *baseoffset, int width,
+                                    int height, int pitch, intel::coord_t coord,
+                                    T *dst) {
+#if defined(SYCL_INTEL_TARGET)
+    static_assert(sizeof(T) == 1, "Expected T to have size 1");
+    *reinterpret_cast<intel::ushort4 *>(dst) =
+        __builtin_IB_subgroup_block_read_cacheopts_transpose_u8_m32k4(
+          (intptr_t)(baseoffset), width - 1, height - 1, pitch - 1, coord);
+#else
+    CUTE_INVALID_CONTROL_PATH("Trying to use block loads on non-PVC hardware");
+#endif
+  }
+};
+
+struct XE_2D_U8x32x8_LD_T {
+  using BlockShape = Shape<_8, _32>;
+  using inst_dtype = uint8_t;
+  static constexpr bool is_transpose = true;
+
+  template <class T>
+  CUTE_HOST_DEVICE static void copy(const void *baseoffset, int width,
+                                    int height, int pitch, intel::coord_t coord,
+                                    T *dst) {
+#if defined(SYCL_INTEL_TARGET)
+    static_assert(sizeof(T) == 1, "Expected T to have size 1");
+    *reinterpret_cast<intel::ushort8 *>(dst) =
+        __builtin_IB_subgroup_block_read_cacheopts_transpose_u8_m32k8(
+          (intptr_t)(baseoffset), width - 1, height - 1, pitch - 1, coord);
+#else
+    CUTE_INVALID_CONTROL_PATH("Trying to use block loads on non-PVC hardware");
+#endif
+  }
+};
+
+struct XE_2D_U8x16x32_LD_T {
+  using BlockShape = Shape<_32, _16>;
+  using inst_dtype = uint32_t;
+  static constexpr bool is_transpose = true;
+
+  template <class T>
+  CUTE_HOST_DEVICE static void copy(const void *baseoffset, int width,
+                                    int height, int pitch, intel::coord_t coord,
+                                    T *dst) {
+#if defined(SYCL_INTEL_TARGET)
+    static_assert(sizeof(T) == 1, "Expected T to have size 2");
+    *reinterpret_cast<intel::uint8 *>(dst) =
+        __builtin_IB_subgroup_block_read_flat_transpose_u32_k8(
+          (intptr_t)(baseoffset), width - 1, height - 1, pitch - 1, coord);
+#else
+    CUTE_INVALID_CONTROL_PATH("Trying to use block loads on non-PVC hardware");
+#endif
+  }
+};
+
 
 struct XE_2D_U4x16x16_LD_T {
   using BlockShape = Shape<_16, _16>;

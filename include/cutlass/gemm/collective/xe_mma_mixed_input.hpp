@@ -32,6 +32,7 @@
 
 #include "cutlass/cutlass.h"
 #include "cutlass/gemm/dispatch_policy.hpp"
+#include "cutlass/util/mixed_dtype_utils.hpp"
 
 #include "cute/algorithm/functional.hpp"
 #include "cute/atom/mma_atom.hpp"
@@ -46,6 +47,7 @@ using namespace cute;
 
 template <
   int Stages,
+  class Schedule,
   class TileShape_,
   class ElementAOptionalTuple,
   class StrideA_,
@@ -61,7 +63,7 @@ template <
   class SmemCopyAtomB_,
   class TransformB_>
 struct CollectiveMma<
-    MainloopIntelXeXMX16MixedPrecision<Stages>,
+    MainloopIntelXeXMX16MixedPrecision<Stages, Schedule>,
     TileShape_,
     ElementAOptionalTuple,
     StrideA_,
@@ -93,7 +95,7 @@ public:
   //
   // Type Aliases
   //
-  using DispatchPolicy = MainloopIntelXeXMX16MixedPrecision<Stages>;
+  using DispatchPolicy = MainloopIntelXeXMX16MixedPrecision<Stages, Schedule>;
   using WorkgroupTileShape = TileShape_;
 
   
@@ -141,7 +143,7 @@ public:
                                                ElementB>;
 
   static_assert(!cute::is_same_v<ElementA, ElementB>, "Mixed precision GEMM requires different types for A and B!");
-  static_assert(std::is_same_v<LargerElementType, MmaType>,
+  static_assert(std::is_same_v<LargerElementType, MmaType> || (std::is_same_v<LargerElementType, _Float16> && std::is_same_v<MmaType, half_t>),
                "MainloopIntelXeXMX16MixedPrecision has the restriction that mixed dtype always converts the "
                "narrower input type to the larger one and performs GEMM using the DPAS for the larger input type.");
 
@@ -166,8 +168,6 @@ private:
   static constexpr ConversionMode KernelConversionMode = get_conversion_mode();
   static constexpr bool ModeHasScales = KernelConversionMode == ConversionMode::ConvertAndScale ||
                                         KernelConversionMode == ConversionMode::ConvertAndScaleWithZero;
-
-  static_assert(!(sizeof_bits_v<ElementQuant> < 8 && ModeHasScales), "Dequantization with sub-byte quant type not yet supported in Xe mixed precision Gemm");
 
 public:
   static constexpr int SubgroupSize = DispatchPolicy::SubgroupSize;
@@ -324,7 +324,6 @@ public:
       auto pDst = const_cast<DstType*>(raw_pointer_cast(dst.data()));
       constexpr int num_elements = decltype(size(src))::value;
 
-    // TODO(Codeplay): (perf) consider replacing `pack` with `num_elements` here - See xe_flash_attn_mma.hpp
       constexpr int pack = decltype(select_packing<SrcType, DstType, num_elements>::value())::value;
       using Converter = cutlass::NumericArrayConverter<DstType, SrcType, pack, cutlass::FloatRoundStyle::round_to_nearest>;
       using SrcArray = cutlass::Array<SrcType, pack>;
@@ -362,13 +361,20 @@ public:
         // 16 x 4 x 2 values for B
         // 16 x 2 of these are same K
         // 4 different scale/zero values per thread, no exchange needed
+        static constexpr auto DPAS = decltype(size<0>(tCrA_load))::value;
+        static constexpr auto N = decltype(size<1>(tCrA_load))::value;
+        static constexpr auto K = decltype(size<2>(tCrA_load))::value;
+
         CUTLASS_PRAGMA_UNROLL
-        for (int i = 0; i < 4; ++i) {
+        for (int k = 0; k < K; ++k) {
           CUTLASS_PRAGMA_UNROLL
-          for (int j = 0; j < 32; ++j) {
-            tCrA_mma(_, i, _)[j] *= tCrS_input(i);
-            if constexpr (KernelConversionMode == ConversionMode::ConvertAndScaleWithZero){
-              tCrA_mma(_, i, _)[j] += tCrZ_input(i);
+          for (int i = 0; i < N; ++i) {
+            CUTLASS_PRAGMA_UNROLL
+            for (int j = 0; j < DPAS; ++j) {
+              tCrA_mma(j, i, k) *= tCrS_input(i);
+              if constexpr (KernelConversionMode == ConversionMode::ConvertAndScaleWithZero){
+                tCrA_mma(j, i, k) += tCrZ_input(i);
+              }
             }
           }
         }
@@ -408,7 +414,7 @@ public:
     // Instantiate the MMA object and get thread slice
     TiledMma tiled_mma;
     auto sg = syclcompat::get_nd_item<1>().get_sub_group();
-    auto first_thread_in_sg_idx = sg.get_group_linear_id() * DispatchPolicy::SubgroupSize;
+    auto first_thread_in_sg_idx = sg.get_group_linear_id() * SubgroupSize;
     auto thr_mma = tiled_mma.get_slice(first_thread_in_sg_idx);
 
     // Partition
@@ -421,9 +427,11 @@ public:
 
     // If IsATransformed, we need modes M_atom, and M_iter from fragment_A
     // layout else we need mode N_iter from fragment_B layout.
+    static constexpr auto scale_traits_size = decltype(size(GmemTiledCopyScale::BlockShape{}))::value / SubgroupSize;
+    static constexpr auto traits_num = SG_N / size<1>(GmemTiledCopyScale::BlockShape{});
     using FragScaleLayout = std::conditional_t<IsATransformed,
-                                               Layout<Shape<_2, _1, _1>>,
-                                               Layout<Shape<_2, _2, _1>>>;
+                                               Layout<Shape<Int<scale_traits_size>, Int<traits_num>, _1>>,
+                                               Layout<Shape<Int<scale_traits_size>, Int<traits_num>, _1>>>;
     Tensor fragment_scale_input = make_tensor<NonVoidElementScale>(FragScaleLayout{});
     Tensor fragment_zero_input =  make_tensor<NonVoidElementZero> (FragScaleLayout{});
 
@@ -473,11 +481,11 @@ public:
     Tensor copy_iter_s = [&](){
       if constexpr(IsATransformed){
         return make_tensor(make_inttuple_iter(make_coord(m_coord, 0, l_coord)),
-                           make_layout(make_shape(_2{}, _1{}, _1{}, k_tile_count), 
+                           make_layout(make_shape(Int<scale_traits_size>{}, Int<traits_num>{}, _1{}, k_tile_count),
                                        make_stride(E<0>{} * _16{}, E<0>{} * _32{}, _0{}, E<1>{} * _1{})));
       }else{
         return make_tensor(make_inttuple_iter(make_coord(n_coord, 0, l_coord)),
-                           make_layout(make_shape(_2{}, _2{}, _1{}, k_tile_count), 
+                           make_layout(make_shape(Int<scale_traits_size>{}, Int<traits_num>{}, _1{}, k_tile_count),
                                        make_stride(E<0>{} * _16{}, E<0>{} * _32{}, _0{}, E<1>{} * _1{})));
       }
     }();
@@ -515,7 +523,8 @@ public:
   #endif
 
     const int k_start_idx = crd2idx((*k_tile_iter), make_shape(K_start));
-    int prefetch_k = 0;
+    constexpr int barrier_scope = 2;
+    int prefetch_k = k_start_idx;
 
     CUTLASS_PRAGMA_UNROLL
     for (int i = 0; i < DispatchPolicy::Stages; i++, prefetch_k++) {
@@ -526,16 +535,18 @@ public:
     const int k_reload_factor = mainloop.group_size / BLK_K; 
 
     CUTLASS_PRAGMA_UNROLL
-    for (int k_tile = 0, k = k_start_idx; k_tile < k_tile_count; ++k_tile, ++k, ++prefetch_k) {
+    for (int k_tile = k_start_idx; k_tile < k_tile_count + k_start_idx; k_tile++, prefetch_k++) {
+      barrier_arrive(barrier_scope);
+
       // Copy gmem to rmem for the first k_tile
-      copy(mainloop.tiled_copy_a, tAgA(_,_,_,k), frag_copy_A);
-      copy(mainloop.tiled_copy_b, tBgB(_,_,_,k), frag_copy_B);
+      copy(mainloop.tiled_copy_a, tAgA(_,_,_,k_tile), frag_copy_A);
+      copy(mainloop.tiled_copy_b, tBgB(_,_,_,k_tile), frag_copy_B);
 
       if constexpr(ModeHasScales){
-        copy(mainloop.tiled_copy_scale, copy_iter_s(_, _, _, k_start_idx + (k_tile / k_reload_factor)), copy_tCrS);
+        copy(mainloop.tiled_copy_scale, copy_iter_s(_, _, _, k_tile / k_reload_factor), copy_tCrS);
       }
       if constexpr(KernelConversionMode == ConversionMode::ConvertAndScaleWithZero){
-        copy(mainloop.tiled_copy_zero, copy_iter_s(_, _, _, k_start_idx + (k_tile / k_reload_factor)), copy_tCrZ);
+        copy(mainloop.tiled_copy_zero, copy_iter_s(_, _, _, k_tile / k_reload_factor), copy_tCrZ);
       }
       if constexpr (IsATransformed) {
         transform_quant(quant_frag, mma_A, fragment_scale_input,
@@ -551,6 +562,7 @@ public:
       }
 
       cute::gemm(tiled_mma, mma_A, mma_B, accum);
+      barrier_wait(barrier_scope);
     }
   }
 };

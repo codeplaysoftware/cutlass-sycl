@@ -239,6 +239,10 @@ public:
     // Kernel level shared memory storage
     SharedStorage& shared_storage = *reinterpret_cast<SharedStorage*>(smem_buf);
 
+    if constexpr (cute::is_same_v<TileSchedulerTag, cutlass::gemm::StreamKScheduler>) {
+      TileScheduler::init_barrier();
+    }
+
     // Optionally append 1s until problem shape is rank-4 in case it is only rank-3 (MNK)
     auto problem_shape_MNKL = append<4>(params.problem_shape, Int<1>{});
     auto M = get<0>(problem_shape_MNKL);

@@ -42,6 +42,7 @@
 #include <cute/arch/inline_pisa.hpp>
 #elif defined(SYCL_INTEL_TARGET)
 #include <cute/arch/copy_xe.hpp>
+#include <cute/arch/xe_named_barrier.hpp>
 #endif
 #if defined(SYCL_INTEL_TARGET)
 #include <cute/util/xe_split_barrier.hpp>
@@ -286,13 +287,32 @@ class NamedBarrier {
     sync_internal(num_threads, static_cast<int>(reserved_named_barriers));
   }
 
+  // Initialize named barrier hardware resources.
+  //
+  // On Intel Xe, the IGC compiler requires an explicit init call so that it
+  // allocates the requested number of hardware named barriers for the kernel.
+  // num_user_barriers is the number of user-visible barriers; this method also
+  // accounts for the CUTLASS-reserved barriers (ReservedNamedBarrierCount).
+  //
+  // On NVIDIA targets, hardware named barriers (bar.sync) require no init and
+  // this becomes a no-op, preserving source compatibility across backends.
+  template <uint32_t num_user_barriers = 0>
+  CUTLASS_DEVICE
+  static void init() {
+#if defined(SYCL_INTEL_TARGET)
+    constexpr uint32_t total = ReservedNamedBarrierCount + num_user_barriers;
+    static_assert(total <= HardwareMaxNumNamedBarriers,
+                  "Total named barriers exceed hardware maximum (16).");
+    cute::named_barrier_init<total>();
+#endif
+  }
 
  private:
   CUTLASS_DEVICE
   static void arrive_and_wait_internal(uint32_t num_threads, uint32_t barrier_id) {
 #if defined(SYCL_INTEL_TARGET)
-    cute::barrier_arrive(ScopeWorkgroup, ScopeWorkgroup, 0);
-    cute::barrier_wait(ScopeWorkgroup, ScopeWorkgroup, 0);
+    cute::named_barrier_arrive_and_wait(
+        static_cast<uint8_t>(barrier_id), num_threads);
 #elif CUDA_BARRIER_ENABLED
     asm volatile("bar.sync %0, %1;" : : "r"(barrier_id), "r"(num_threads));
     cutlass::arch::synclog_emit_named_barrier_arrive_and_wait(__LINE__, num_threads, barrier_id);
@@ -314,7 +334,8 @@ class NamedBarrier {
   CUTLASS_DEVICE
   static void arrive_internal(uint32_t num_threads, uint32_t barrier_id) {
 #if defined(SYCL_INTEL_TARGET)
-    cute::barrier_arrive(ScopeWorkgroup, ScopeWorkgroup, 0);
+    cute::named_barrier_arrive(
+        static_cast<uint8_t>(barrier_id), num_threads);
 #elif CUDA_BARRIER_ENABLED
     cutlass::arch::synclog_emit_named_barrier_arrive(__LINE__, num_threads, barrier_id);
     asm volatile("bar.arrive %0, %1;" : : "r"(barrier_id), "r"(num_threads));
@@ -342,7 +363,11 @@ class NamedBarrier {
   // Currently we reserve 8 NamedBarriers for CUTLASS' own use cases, 
   // while leaving the renaming for general users.
   static const uint32_t ReservedNamedBarrierCount = static_cast<uint32_t>(ReservedNamedBarriers::FirstUserBarrier);
+#if defined(SYCL_INTEL_TARGET)  
+  static const uint32_t HardwareMaxNumNamedBarriers = 32;
+#else
   static const uint32_t HardwareMaxNumNamedBarriers = 16;
+#endif
 
 };
 

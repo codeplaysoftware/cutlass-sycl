@@ -54,6 +54,7 @@ cutlass_test_unit_add_executable(
   xe_transpose_2d.cpp
   quantize_block_wise.cpp
   dequantize.cpp
+  xe_named_barrier.cpp
 )
 else()
 cutlass_test_unit_add_executable(

@@ -242,6 +242,10 @@ public:
     // Kernel level shared memory storage
     SharedStorage& shared_storage = *reinterpret_cast<SharedStorage*>(smem_buf);
 
+    if constexpr (cute::is_same_v<TileSchedulerTag, cutlass::gemm::StreamKScheduler>) {
+      TileScheduler::init_barrier();
+    }
+
     TileScheduler scheduler{params.scheduler};
     auto work_tile_info = scheduler.initial_work_tile_info(ClusterShape{});
     constexpr auto workgroup_shape = WorkgroupTileShape{};                                                  // (BLK_M,BLK_N,BLK_K)

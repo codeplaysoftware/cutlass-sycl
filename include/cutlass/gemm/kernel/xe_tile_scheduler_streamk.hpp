@@ -291,6 +291,12 @@ public:
     return work_tile_info.is_valid() && work_tile_info.k_tile_count != params.divmod_tiles_per_output_tile_.divisor;
   }
 
+  CUTLASS_DEVICE
+  static void
+  init_barrier() {
+    cutlass::arch::NamedBarrier::init<>();
+  }
+
   // Performs the reduction across splits for a given output tile.
 template <class FrgTensorC>
   CUTLASS_DEVICE
